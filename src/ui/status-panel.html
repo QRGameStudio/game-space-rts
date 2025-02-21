@@ -1,0 +1,68 @@
+<!-- Status panel -->
+<div class="controls-c">
+    <div class="alert">
+        <div r-if="!v.alert" class="green">Condition: Green</div>
+        <div r-if="v.alert" class="red">Condition: ALERT</div>
+    </div>
+
+    <div class="position">
+        <div>
+            <div class="autopilot" r-if="v.autopilot">
+                <div>
+                    <!-- Target -->
+                    <span r-var="GUt.ud('8J+Orw==')"></span>
+                    <span r-var="v.autopilot.system"></span> (<span r-var="v.autopilot.x"></span> X <span r-var="v.autopilot.y"></span>)
+                </div>
+                <div>
+                    <!-- ETA -->
+                    <span r-var="GUt.ud('8J+VnQ==')"></span>
+                    <span r-var="v.autopilot.time"></span>
+                </div>
+            </div>
+
+            <div>
+                <!-- Position -->
+                <span r-var="GUt.ud('8J+TjA==')"></span>
+                <span r-var="v.system"></span> (<span r-var="v.x"></span> X <span r-var="v.y"></span>)
+            </div>
+            <div>
+                <!-- Speed -->
+                <span r-var="GUt.ud('4o+p')"></span>
+                <span r-var="v.s"></span> m/s (<span r-var="v.maxSpeed"></span> m/s)
+            </div>
+        </div>
+        <div>
+            <div class="controls-cargo" r-click="f.showInventory()">
+                <!-- Cargo -->
+                <span r-var="GUt.ud('8J+Tpg==')"></span>
+                <span r-var="v.inventory.sum"></span> t (<span r-var="v.inventory.capacity"></span> t)
+            </div>
+            <div>
+                <!-- Health -->
+                <span r-var="GUt.ud('8J+Sqg==')"></span>
+                <span r-var="v.health"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="buttons">
+        <button id="btnMap" class="btn btn-light">
+            <span r-var="GUt.ud('8J+Xuu+4jw==')"></span>
+            Open map
+        </button>
+        <div class="drone">
+            <button r-if="v.docked" class="btn btn-primary" r-click="f.launch()">
+                <span r-var="GUt.ud('8J+Vue+4jw==')"></span>
+                Launch drone
+            </button>
+            <button r-if="!v.docked && v.inRange" class="btn btn-primary" r-click="f.dock()">
+                <span r-var="GUt.ud('8J+Vue+4jw==')"></span>
+                Dock drone
+            </button>
+            <button r-if="!v.docked && !v.inRange" class="btn btn-primary" r-click="f.recall()">
+                <span r-var="GUt.ud('8J+Vue+4jw==')"></span>
+                Recall drone
+            </button>
+        </div>
+    </div>
+</div>

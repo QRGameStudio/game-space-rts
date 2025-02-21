@@ -1,0 +1,36 @@
+<!-- Modal trader commands -->
+<div id="modal-trader-commands" class="modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Trader <span r-var="v.trader.name"></span> commands</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div>
+                    <label>
+                        <select r-val="w.command">
+                            <option value="">Select command</option>
+                            <option r-for="command of Object.keys(v.commands)" r-var="v.commands[l.command].description" r-attr="{&quot;value&quot;: &quot;l.command&quot;}"></option>
+                        </select>
+                    </label>
+                    <span r-var="w.command"></span>
+                    <label r-if="w.command">
+                        <select r-val="w.param">
+                            <option value="">Select parameter</option>
+                            <option r-for="param of v.commands[w.command].data" r-var="l.param.text" r-attr="{&quot;value&quot;: &quot;l.param.id&quot;}"></option>
+                        </select>
+                    </label>
+                    <button class="btn btn-primary" r-if="w.param && w.command" r-click="f.sendCommand(w.command, w.param)">Send</button>
+                </div>
+                <ul>
+                    <li r-for="order of v.orders">
+                        <span r-var="l.order.description"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

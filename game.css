@@ -1,0 +1,186 @@
+html {
+    padding: 0;
+    margin: 0;
+    font-family: monospace;
+    width: 100vw;
+    height: 100vh;
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+body, #game-layer {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+#game-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0;
+    padding: 0;
+}
+
+.alert {
+    font-size: 20px;
+}
+
+.alert > .green {
+    color: darkgreen;
+    border: 2px dotted darkgreen;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+.alert > .red {
+    color: darkred;
+    border: 2px dashed darkred;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px;
+    animation-name: blink;
+    animation-duration: 1s;
+    animation-iteration-count: infinite;
+}
+
+@keyframes blink {
+    0% {
+        filter: brightness(1);
+    }
+
+    33% {
+        filter: brightness(1.5);
+    }
+
+    66% {
+        filter: brightness(0.5);
+    }
+}
+
+.autopilot {
+    margin-bottom: 0.75em;
+}
+
+.controls-c {
+    opacity: 0.5;
+    position: fixed;
+    bottom: 1em;
+    width: calc(100% - 10ex);
+    display: flex;
+    justify-content: space-between;
+    margin: 0 5ex;
+    align-items: flex-end;
+    color: white;
+    font-family: monospace;
+    font-size: 17px;
+}
+
+.controls-c > *:not(:last-child) {
+    margin-right: 1em;
+}
+
+.controls-c > .position {
+    display: flex;
+    flex-grow: 1;
+    justify-content: space-around;
+    align-items: flex-end;
+}
+
+
+.inventory {
+    color: white;
+}
+
+.controls-cargo {
+    cursor: pointer;
+}
+
+.buttons {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.buttons>*:not(:last-child) {
+    margin-bottom: 0.2em;
+}
+
+.map-btn {
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 2px;
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+
+.map-btn:hover {
+    border-color: gray;
+}
+
+#game-score {
+    color: white;
+    font-size: 25px;
+}
+
+.modal-system-map-body {
+    display: flex;
+    justify-content: center;
+}
+
+.system-map-container {
+    border: 1px solid orange;
+    width: 60vw;
+    height: 80vh;
+    overflow: scroll;
+    background: black;
+    color: white;
+}
+
+.system-map {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.system-map > .system {
+    position: absolute;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 70px;
+}
+
+.system-dot {
+    width: 10px !important;
+    height: 10px !important;
+    border-radius: 50%;
+    opacity: 0.2;
+}
+
+.system-line {
+    position: absolute;
+    height: 2px;
+    transform-origin: 0 0;
+    opacity: 0.2;
+}
+
+.system-name.system-player {
+    color: lightgreen;
+}
+
+.system > .system-time, .system > .system-distance {
+    font-size: 14px;
+    color: lightgray;
+}
+
+.system-navigation-points-list {
+    max-height: 80vh;
+    overflow: scroll;
+}
