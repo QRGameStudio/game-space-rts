@@ -1,0 +1,1 @@
+// !G.import('map-generator.js')

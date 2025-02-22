@@ -1,9 +1,9 @@
 class GEOLabel extends GEO {
     /**
-     *
-     * @param game {GEG}
-     * @param owner {GEO}
-     * @param text {string}
+     * Adds a label to an object
+     * @param game {GEG} The game object
+     * @param owner {GEO} The object that owns the label
+     * @param text {string} The text to display
      */
     constructor(game, owner, text) {
         super(game);
