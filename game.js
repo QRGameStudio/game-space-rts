@@ -40,10 +40,6 @@ async function start() {
     GAME.fps = 30;
 
     SERVER = new ServerConnection();
-    SERVER.onEventListener((event, source, data) => {
-        console.log('[SERVER] Event', event, source, data);
-    });
-
     const map = new MapGenerator(GAME, SERVER);
     map.generateMap(10);
 

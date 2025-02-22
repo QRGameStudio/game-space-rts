@@ -11,7 +11,7 @@ function startMockServer(con) {
     /** @type {GameClient} */
     const client = {
         id: 'local-player',
-        send: null,
+        send: (event, source, data) => con.__onServerEvent(event, source, data),
         onEvent: con.sendEvent
     }
 

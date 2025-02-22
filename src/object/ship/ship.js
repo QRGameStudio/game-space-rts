@@ -19,10 +19,9 @@ class GEOShip extends GEOSavable {
         this.w = 75;
         this.h = 25;
         this.t = 'ship';
+        this.conn = new ServerCommAsset(SERVER, this);
         this.health = 100;
-        this.turnSpeed = 5;
-        this.maxSpeed = 300;
-        this.acceleration = 30;
+
         this.color = color;
         this.system = system;
         this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
@@ -30,6 +29,8 @@ class GEOShip extends GEOSavable {
 
         /** @type {GEOStarSystem[]} */
         this.route = [];
+
+        this.conn.patchMethod(this.goToSystem);
     }
 
     draw(ctx) {
@@ -44,17 +45,6 @@ class GEOShip extends GEOSavable {
         ctx.lineTo(this.x, this.y - this.hh);
         ctx.closePath();
         ctx.stroke();
-        if (this.s > 0 && this.fwd) {
-            ctx.strokeStyle = 'yellow';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.moveTo(this.x, this.y + (this.hh * 2/3));
-            ctx.lineTo(this.x - (this.wh * random()), this.y);
-            ctx.lineTo(this.x, this.y - (this.hh * 2/3));
-            ctx.moveTo(this.x, this.y + (this.hh * 2/3));
-            ctx.closePath();
-            ctx.stroke();
-        }
     }
 
     step() {
@@ -63,7 +53,7 @@ class GEOShip extends GEOSavable {
             const nextSystem = this.route[0];
             if (this.distanceFrom(nextSystem) > this.r + nextSystem.r) {
                 this.d = this.angleTo(nextSystem);
-                this.s = 5;
+                this.s = 2;
             } else {
                 this.system = nextSystem;
                 this.s = 0;
@@ -72,30 +62,32 @@ class GEOShip extends GEOSavable {
         }
 
         if (!this.route.length) {
+            console.debug('[Ship] Route completed');
             // noinspection JSValidateTypes
             /** @type {GEOStarSystem[]} */
             const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
-            this.goToSystem(systems[Math.floor(Math.random() * systems.length)]);
+            this.goToSystem(systems[Math.floor(Math.random() * systems.length)].label.text, true);
         }
     }
 
     /**
      * Plans a route to a system.
-     * @param system {GEOStarSystem} The system to go to.
+     * @param systemName {string} The system to go to.
      * @param replace {boolean} If true, the current route will be replaced.
      */
-    goToSystem(system, replace = false) {
+    goToSystem(systemName, replace = false) {
+        const systemTarget = [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
         let systemCurr = this.system;
         const searchedSystems = new Set();
         const route = [];
-        while (systemCurr !== system) {
+        while (systemCurr !== systemTarget) {
             if (searchedSystems.has(systemCurr)) {
                 break;
             }
             searchedSystems.add(systemCurr);
             const nextSystem = systemCurr.connections.reduce((prev, curr) => {
-                const prevDistance = GEG.distanceBetween(prev, system);
-                const currDistance = GEG.distanceBetween(curr, system);
+                const prevDistance = GEG.distanceBetween(prev, systemTarget);
+                const currDistance = GEG.distanceBetween(curr, systemTarget);
                 return prevDistance < currDistance ? prev : curr;
             });
             route.push(nextSystem);

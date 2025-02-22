@@ -1,16 +1,9 @@
 class ServerConnection {
     constructor(id) {
-        this.id = id;
+        this.id = id || GUt.uuid();
         this.__client = startMockServer(this);
         /** @type {{prefix: string, callback: function}[]} */
         this.__listeners = [];
-        this.__client.send = (event, source, data) => {
-            for (const listener of this.__listeners) {
-                if (event.startsWith(listener.prefix)) {
-                    listener.callback(event, source, data);
-                }
-            }
-        };
     }
 
     /**
@@ -38,6 +31,8 @@ class ServerConnection {
      * @returns {Promise<void>} A promise that resolves when the event is sent
      */
     async sendEvent(event, data) {
+        data = JSON.stringify(data);
+        console.debug('[Conn] >', event, data);
         await this.__client.onEvent(event, data);
     }
 
@@ -50,27 +45,40 @@ class ServerConnection {
     async onEventListener(callback, prefix = '') {
         this.__listeners.push({prefix, callback});
     }
+
+    async __onServerEvent(event, source, data) {
+        data = JSON.parse(data);
+        console.debug('[Conn] <', event, source, data);
+        for (const listener of this.__listeners) {
+            if (event.startsWith(listener.prefix)) {
+                listener.callback(event, source, data);
+            }
+        }
+    }
 }
 
 class ServerCommAsset {
     /**
      * @param server {ServerConnection}
+     * @param parent {Object}
      * @param assetId {string | null}
      * @param assetCategory {string}
      */
-    constructor(server, assetId = null, assetCategory = 'asset') {
+    constructor(server, parent, assetId = null, assetCategory = 'asset') {
         this.server = server;
+        this.parent = parent;
         assetId = assetId || GUt.uuid();
         this.server_id = server.generateAssetId(assetId, assetCategory);
     }
 
     patchMethodName(methodName) {
-        const orig = this[methodName];
+        const orig = this.parent[methodName];
+        const eventName = `${this.server_id}/patchedMethod:${methodName}`;
         this.server.onEventListener((event, source, data) => {
-            orig.apply(this, data);
-        }, `${this.server_id}/${methodName}`);
-        this[methodName] = () => {
-            this.server.sendEvent(`${this.server_id}/${methodName}`, arguments).then();
+            orig.apply(this.parent, data);
+        }, eventName);
+        this.parent[methodName] = (...args) => {
+            this.server.sendEvent(eventName, [...args]).then();
         }
     }
 
