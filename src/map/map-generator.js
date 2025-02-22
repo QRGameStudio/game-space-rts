@@ -2,16 +2,19 @@ class MapGenerator {
     /**
      * Generates a map for the game.
      * @param game {GEG}
+     * @param server {ServerConnection}
      */
-    constructor(game) {
+    constructor(game, server) {
         /** @type {GEOStarSystem[]} */
         this.systems = [];
         this.game = game;
+        this.server = server;
     }
 
     generateSystem() {
+        let newSystem;
         if (this.systems.length === 0) {
-            this.systems.push(new GEOStarSystem(this.game, 0, 0));
+            newSystem = new GEOStarSystem(this.game, 0, 0);
         } else {
             while (true) {
                 const randomSystem = this.systems[Math.floor(Math.random() * this.systems.length)];
@@ -29,7 +32,7 @@ class MapGenerator {
                     continue;
                 }
 
-                const newSystem = new GEOStarSystem(this.game, position.x, position.y);
+                newSystem = new GEOStarSystem(this.game, position.x, position.y);
                 this.systems.push(newSystem);
                 randomSystem.connections.push(newSystem);
                 newSystem.connections.push(randomSystem);
@@ -41,7 +44,8 @@ class MapGenerator {
             }
         }
 
-        console.log(this.systems);
+        newSystem.serverId = this.server.generateObjectId(newSystem);
+        this.systems.push(newSystem);
     }
 
     generateMap(systems = 10) {

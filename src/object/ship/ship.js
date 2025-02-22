@@ -12,38 +12,24 @@ class GEOShip extends GEOSavable {
      *
      * @param game {GEG}
      * @param color {string}
+     * @param system {GEOStarSystem}
      */
-    constructor(game, color) {
+    constructor(game, color, system) {
         super(game);
         this.w = 75;
         this.h = 25;
         this.t = 'ship';
-        this.label = new GEOLabel(game, this, randomName(7, 10));
-
-        /**
-         * @type {Inventory}
-         */
-        this.inventory = new Inventory(32);
-
-        /**
-         *
-         * @type {number}
-         */
         this.health = 100;
         this.turnSpeed = 5;
         this.maxSpeed = 300;
         this.acceleration = 30;
         this.color = color;
-        this.__canFireLasers = true;
-        this.__laserTimeout = 200;
-        this.__lasersTargets = [GEOPirate.t, GEOAsteroid.t, GEOTrader.t, GEOMiner.t];
-        /**
-         * @type {GEOShipAutopilot | null}
-         * @protected
-         */
-        this.__autopilot = null;
+        this.system = system;
+        this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
+        this.y = this.system.y + Math.random() * ( this.system.h * 1.5) - ( this.system.h / 2 );
 
-        this.__playEnginesHumm();
+        /** @type {GEOStarSystem[]} */
+        this.route = [];
     }
 
     draw(ctx) {
@@ -73,124 +59,55 @@ class GEOShip extends GEOSavable {
 
     step() {
         super.step();
-
-        if (this.health <= 0) {
-            this.die();
-        }
-
-        if (this.__autopilot !== null) {
-            const speedDownStepsLeft = this.s / this.speedAccelerationPerStep;
-            const distanceLeft = this.distanceTo(this.__autopilot) - this.__autopilot.accuracy;
-            const stepsLeft = distanceLeft / this.s;
-            const closingIn = this.s < 1 ? true : GEG.distanceBetween(this.__autopilot, this.nextPos) + 2 * this.s / 3 <= this.distanceTo(this.__autopilot);
-
-            if (this.s > this.maxSpeed || !closingIn || stepsLeft < speedDownStepsLeft) {
-                this.decelerate(closingIn ? Math.max(this.__autopilot.slowTo, 3) : 0);
+        if (this.route.length) {
+            const nextSystem = this.route[0];
+            if (this.distanceFrom(nextSystem) > this.r + nextSystem.r) {
+                this.d = this.angleTo(nextSystem);
+                this.s = 5;
             } else {
-                this.accelerate();
-            }
-
-            this.rotateTo(this.__autopilot.x, this.__autopilot.y);
-
-            const targetDistance = this.distanceTo(this.__autopilot);
-            if (targetDistance < this.__autopilot.accuracy && this.s < this.__autopilot.slowTo + 5) {
-                this.s = this.__autopilot.slowTo;
-                this.__autopilot = null;
+                this.system = nextSystem;
+                this.s = 0;
+                this.route.shift();
             }
         }
-    }
 
-    die() {
-        super.die();
-        new GEOExplosion(GAME, this.x, this.y);
-    }
-
-    /**
-     * How much can this ship accelerate per step
-     * @return {number}
-     */
-    get speedAccelerationPerStep() {
-        const speedupSteps = this.acceleration * this.game.fps;
-        return this.maxSpeed / speedupSteps;
-    }
-
-    /**
-     * Accelerates up to the maximal speed
-     * @return {boolean} true if maximal speed was reached
-     */
-    accelerate() {
-        const acceleration = this.speedAccelerationPerStep;
-        const newSpeed = Math.min(this.maxSpeed, this.s + acceleration);
-        this.s = newSpeed;
-        return newSpeed === this.maxSpeed;
-    }
-
-    /**
-     * Decelerates speed up to full stop
-     * @param minSpeed {number} minimal speed considered full stop
-     * @return {boolean} true if stopped
-     */
-    decelerate(minSpeed = 0) {
-        const acceleration = this.speedAccelerationPerStep;
-        const newSpeed = Math.max(Math.min(minSpeed, this.maxSpeed), this.s - acceleration);
-        this.s = newSpeed;
-        return newSpeed === minSpeed;
-    }
-
-    /**
-     * Rotates to face coordinates
-     * @param x {number} target x-coordinates
-     * @param y {number} target y-coordinates
-     * @return {boolean} true if rotations is finished, false if more steps are required
-     */
-    rotateTo(x, y) {
-        const targetDirection = this.angleTo({x, y});
-        const directionDiff = Math.abs(this.d - targetDirection);
-        if (directionDiff > 5) {
-            const turnSpeed = this.s > 2 ? Math.max(Math.min(this.turnSpeed, Math.abs(targetDirection - this.d), this.s * 2 / 3), 1) : this.turnSpeed;
-            const relativeDirectionDiff = GUt.relativeAngle(targetDirection - this.d);
-            this.d += turnSpeed * (relativeDirectionDiff >= -5 ? 1 : -1);
-            return false;
-        } else if (directionDiff > 2) {
-            this.d = targetDirection;
+        if (!this.route.length) {
+            // noinspection JSValidateTypes
+            /** @type {GEOStarSystem[]} */
+            const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+            this.goToSystem(systems[Math.floor(Math.random() * systems.length)]);
         }
-        return true;
     }
 
     /**
-     * Set autopilot to go to a location
-     * @param x {number}
-     * @param y {number}
-     * @param accuracy {number}
-     * @param slowTo {number}
-     * @return true if already at the position
+     * Plans a route to a system.
+     * @param system {GEOStarSystem} The system to go to.
+     * @param replace {boolean} If true, the current route will be replaced.
      */
-    goto(x, y, accuracy = Math.min(this.wh, this.hh), slowTo = 0) {
-        accuracy = Math.max(accuracy, 0);
-
-        if (this.distanceTo({x, y}) <= accuracy) {
-            return true;
+    goToSystem(system, replace = false) {
+        let systemCurr = this.system;
+        const searchedSystems = new Set();
+        const route = [];
+        while (systemCurr !== system) {
+            if (searchedSystems.has(systemCurr)) {
+                break;
+            }
+            searchedSystems.add(systemCurr);
+            const nextSystem = systemCurr.connections.reduce((prev, curr) => {
+                const prevDistance = GEG.distanceBetween(prev, system);
+                const currDistance = GEG.distanceBetween(curr, system);
+                return prevDistance < currDistance ? prev : curr;
+            });
+            route.push(nextSystem);
+            systemCurr = nextSystem;
         }
-        this.__autopilot = {x, y, accuracy, slowTo};
-        return false;
-    }
 
-    /**
-     * Cancels autopilot
-     * @return {undefined}
-     */
-    cancelGoto() {
-        this.__autopilot = null;
-    }
-
-    fireLasers() {
-        if (!this.__canFireLasers) {
-            return;
+        if (replace) {
+            this.route.length = 0;
         }
-        this.__canFireLasers = false;
-        setTimeout(() => this.__canFireLasers = true, this.__laserTimeout);
-        createLaser(this.game, this, true, this.__lasersTargets).s += this.s;
-        createLaser(this.game, this, false, this.__lasersTargets).s += this.s;
+        this.route.push(...route);
+
+        console.debug('[Ship] Route planned', this.route.map((system) => system.label.text));
     }
 
     saveDict() {
@@ -207,20 +124,5 @@ class GEOShip extends GEOSavable {
         this.__autopilot = data.autopilot;
         this.label.text = data.label;
         this.inventory.parse(data.inventory);
-    }
-
-    __playEnginesHumm() {
-        let sound;
-        if (this.s < 30) {
-            sound = 'humm0';
-        } else if (this.s < 310) {
-            sound = 'humm1';
-        } else {
-            sound = 'humm2';
-        }
-
-        const volume = this.s < 1 ? 0 : 5 + 20 * (this.s / this.maxSpeed);
-
-        MUSIC.play(sound, 0, volume * this.soundVolume * 0.01).then(() => this.__playEnginesHumm());
     }
 }

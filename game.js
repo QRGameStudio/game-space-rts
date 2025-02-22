@@ -44,10 +44,11 @@ async function start() {
         console.log('[SERVER] Event', event, source, data);
     });
 
-    const map = new MapGenerator(GAME);
-    map.generateMap();
+    const map = new MapGenerator(GAME, SERVER);
+    map.generateMap(10);
 
     GAME.cameraCenter = {x: map.systems[0].x, y: map.systems[0].y};
+    GAME.cameraFollowObject = new GEOShip(GAME, 'white', map.systems[0]);
 
     GAME.onKeyDown = (key) => {
         switch (key) {

@@ -1,5 +1,6 @@
 class GEOStarSystem extends GEOSavable {
     static t = 'system';
+    static selectedId = null;
 
     /**
      * @param game {GEG}
@@ -12,12 +13,21 @@ class GEOStarSystem extends GEOSavable {
         this.t = GEOStarSystem.t;
         this.x = x;
         this.y = y;
+        this.label = new GEOLabel(this.game, this, randomName());
         this.gonioCoefficient = 2 * PI / this.sides;
+        this.clickable = true;
 
         this.w = this.h = 75;
 
         /** @type {GEOStarSystem[]} */
         this.connections = [];
+    }
+
+    onclick(x, y, clickedObject) {
+        console.debug('[System] selecting', this.label.text);
+        this.game.cameraCenter = {x: this.x, y: this.y};
+        this.constructor.selectedId = this.id;
+        return true;
     }
 
     step() {
@@ -36,8 +46,8 @@ class GEOStarSystem extends GEOSavable {
             }
         }
         ctx.closePath();
-        ctx.strokeStyle = 'orange';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = this.constructor.selectedId === this.id ? 'orange' : 'white';
+        ctx.lineWidth = this.constructor.selectedId === this.id ? 6 : 4;
         ctx.stroke();
 
         for (const connection of this.connections) {

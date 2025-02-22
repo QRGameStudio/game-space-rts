@@ -4,7 +4,7 @@
  * @param lengthMax {number} maximum length of the name
  * @returns {string} the generated name
  */
-function randomName(lengthMin, lengthMax) {
+function randomName(lengthMin = 8, lengthMax = 14) {
     const chars = lengthMin + Math.floor(Math.random() * (lengthMax - lengthMin));
     let name = '';
 
