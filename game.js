@@ -1,6 +1,5 @@
 // !G.import('assets/public/audio.js')
-
-const { random, sin, cos, PI } = Math;
+const { sin, cos, PI } = Math;
 const $ = document.querySelector.bind(document);
 
 // !G.import('src/index.js')
@@ -23,6 +22,9 @@ const STORAGE = new GStorage("space-rts");
 /** @type {ServerConnection} */
 let SERVER;
 
+/** @type {MapGenerator} */
+let MAP;
+
 /** @type {GEG} */
 let GAME;
 
@@ -39,12 +41,21 @@ async function start() {
 
     GAME.fps = 30;
 
-    SERVER = new ServerConnection();
-    const map = new MapGenerator(GAME, SERVER);
-    map.generateMap(10);
+    SERVER = new ServerConnection('MAIN', true);
+    new ServerObjectSync(GAME, SERVER);
 
-    GAME.cameraCenter = {x: map.systems[0].x, y: map.systems[0].y};
-    GAME.cameraFollowObject = new GEOShip(GAME, 'white', map.systems[0]);
+    MAP = new MapGenerator(GAME, SERVER);
+    if (SERVER.mainServer) {
+        MAP.generateMap(10);
+        SERVER.onEventListener(() => {
+            console.log('[SERVER] Sending map data');
+            SERVER.sendEvent('map:fetch:response', MAP.saveDict())
+        }, "map:fetch:request");
+    }
+    new AIOneShip(new ServerConnection('AI-1'));
+
+    GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
+    GAME.cameraFollowObject = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
 
     GAME.onKeyDown = (key) => {
         switch (key) {

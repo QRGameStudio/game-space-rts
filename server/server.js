@@ -22,6 +22,7 @@ class GameServer {
                 throw new Error('Client with id already exists');
             }
         }
+        console.log('[SERVER] New client', client.id);
 
         this.clients.push(client);
         client.onEvent = (event, data) => {
@@ -32,7 +33,7 @@ class GameServer {
                 default:
                     this.clients.forEach(otherClient => {
                         if (otherClient.id !== client.id || true) {
-                            otherClient.send(event, client.id, data).catch(e => console.error('Error sending message to client', client.id, e));
+                            otherClient.send(event, client.id, data).then()
                         }
                     });
                     break;

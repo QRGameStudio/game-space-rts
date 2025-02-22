@@ -1,7 +1,24 @@
 class ServerConnection {
-    constructor(id) {
+    /** @type {GameServer | null} */
+    static __mockServer = null;
+
+    constructor(id = null, mainServer = false) {
         this.id = id || GUt.uuid();
-        this.__client = startMockServer(this);
+        this.mainServer = mainServer;
+
+        /** @type {GameClient} */
+        this.__client = {
+            id: this.id,
+            send: (event, source, data) => this.__onServerEvent(event, source, data),
+            onEvent: this.sendEvent
+        };
+
+        if (!this.constructor.__mockServer) {
+            this.constructor.__mockServer = startMockServer(this);
+        }
+
+        this.constructor.__mockServer.addClient(this.__client);
+
         /** @type {{prefix: string, callback: function}[]} */
         this.__listeners = [];
     }
@@ -59,16 +76,22 @@ class ServerConnection {
 
 class ServerCommAsset {
     /**
-     * @param server {ServerConnection}
+     * @param server {{server: ServerConnection, local?: boolean, id?: string}}
      * @param parent {Object}
      * @param assetId {string | null}
      * @param assetCategory {string}
      */
     constructor(server, parent, assetId = null, assetCategory = 'asset') {
-        this.server = server;
+        this.server = server.server;
         this.parent = parent;
+        this.local = true;
         assetId = assetId || GUt.uuid();
-        this.server_id = server.generateAssetId(assetId, assetCategory);
+        this.server_id = this.server.generateAssetId(assetId, assetCategory);
+
+        if (typeof server.local !== 'undefined') {
+            this.local = server.local;
+            this.server_id = server.id;
+        }
     }
 
     patchMethodName(methodName) {
@@ -84,5 +107,15 @@ class ServerCommAsset {
 
     patchMethod(method) {
         this.patchMethodName(method.name);
+    }
+
+    sendCreationEvent(name, args) {
+        if (!this.local) {
+            return;
+        }
+        this.server.sendEvent(`obj-create:${name}`, {
+            id: this.server_id,
+            args
+        }).then();
     }
 }

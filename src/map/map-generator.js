@@ -53,4 +53,19 @@ class MapGenerator {
             this.generateSystem();
         }
     }
+
+    saveDict() {
+        return {
+            systems: this.systems.map((system) => system.saveDict())
+        }
+    }
+
+    loadDict(data) {
+        this.systems = [];
+        for (const systemData of data.systems) {
+            const system = new GEOStarSystem(this.game, 0, 0);
+            system.loadDict(systemData);
+            this.systems.push(system);
+        }
+    }
 }

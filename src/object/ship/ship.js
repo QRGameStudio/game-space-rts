@@ -8,22 +8,27 @@
  */
 
 class GEOShip extends GEOSavable {
+    static t = 'ship';
+
     /**
      *
      * @param game {GEG}
+     * @param server {{server: ServerConnection, local?: boolean, id?: string}}
      * @param color {string}
-     * @param system {GEOStarSystem}
+     * @param systemName {string}
+     * @param owner {string}
      */
-    constructor(game, color, system) {
+    constructor(game, server, color, systemName, owner) {
         super(game);
         this.w = 75;
         this.h = 25;
-        this.t = 'ship';
-        this.conn = new ServerCommAsset(SERVER, this);
+        this.t = this.constructor.t;
+        this.conn = new ServerCommAsset(server, this);
+        this.owner = owner;
         this.health = 100;
 
         this.color = color;
-        this.system = system;
+        this.system = this.__systemByName(systemName);
         this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
         this.y = this.system.y + Math.random() * ( this.system.h * 1.5) - ( this.system.h / 2 );
 
@@ -31,6 +36,11 @@ class GEOShip extends GEOSavable {
         this.route = [];
 
         this.conn.patchMethod(this.goToSystem);
+
+        const params = [...arguments];
+        params.shift();
+        params.shift();
+        this.conn.sendCreationEvent(this.constructor.t, params);
     }
 
     draw(ctx) {
@@ -52,7 +62,7 @@ class GEOShip extends GEOSavable {
         if (this.route.length) {
             const nextSystem = this.route[0];
             if (this.distanceFrom(nextSystem) > this.r + nextSystem.r) {
-                this.d = this.angleTo(nextSystem);
+                this.d = this.angleTo(nextSystem);[...arguments].shift()
                 this.s = 2;
             } else {
                 this.system = nextSystem;
@@ -61,7 +71,7 @@ class GEOShip extends GEOSavable {
             }
         }
 
-        if (!this.route.length) {
+        if (this.conn.server.mainServer && !this.route.length) {
             console.debug('[Ship] Route completed');
             // noinspection JSValidateTypes
             /** @type {GEOStarSystem[]} */
@@ -76,7 +86,7 @@ class GEOShip extends GEOSavable {
      * @param replace {boolean} If true, the current route will be replaced.
      */
     goToSystem(systemName, replace = false) {
-        const systemTarget = [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
+        const systemTarget = this.__systemByName(systemName);
         let systemCurr = this.system;
         const searchedSystems = new Set();
         const route = [];
@@ -116,5 +126,9 @@ class GEOShip extends GEOSavable {
         this.__autopilot = data.autopilot;
         this.label.text = data.label;
         this.inventory.parse(data.inventory);
+    }
+
+    __systemByName(systemName) {
+        return [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
     }
 }

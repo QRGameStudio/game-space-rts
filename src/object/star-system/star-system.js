@@ -69,10 +69,21 @@ class GEOStarSystem extends GEOSavable {
     saveDict() {
         return {
             ...super.saveDict(),
+            name: this.label.text,
+            connections: this.connections.map((connection) => connection.label.text),
         };
     }
 
     loadDict(data) {
         super.loadDict(data);
+        this.label.text = data.name;
+        for (const connectionName of data.connections) {
+            /** @type {GEOStarSystem} */
+            const connection = [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === connectionName);
+            if (connection) {
+                this.connections.push(connection);
+                connection.connections.push(this);
+            }
+        }
     }
 }
