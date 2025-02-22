@@ -3,26 +3,25 @@ class GEOStarSystem extends GEOSavable {
 
     /**
      * @param game {GEG}
-     * @param x {number | null}
-     * @param y {number | null}
+     * @param x {number}
+     * @param y {number}
      */
-    constructor(game, x = null, y = null) {
+    constructor(game, x, y) {
         super(game);
         this.sides = 8;
+        this.t = GEOStarSystem.t;
+        this.x = x;
+        this.y = y;
         this.gonioCoefficient = 2 * PI / this.sides;
 
-        this.spinSpeed = (random() * 7) - 3.5;
-
         this.w = this.h = 75;
-        this.x = x === null ? game.w - this.wh + (random() * game.w * 0.05) : x;
-        this.y = y === null ? game.h - this.hh + (random() * game.h * 0.05) : y;
-        this.s = 0.3 * random();
-        this.d = random() * 360;
-        this.cwl.add('l');
+
+        /** @type {GEOStarSystem[]} */
+        this.connections = [];
     }
 
     step() {
-        this.ia += this.spinSpeed;
+
     }
 
     draw(ctx) {
@@ -40,6 +39,21 @@ class GEOStarSystem extends GEOSavable {
         ctx.strokeStyle = 'orange';
         ctx.lineWidth = 4;
         ctx.stroke();
+
+        for (const connection of this.connections) {
+            if (connection.id < this.id) {
+                continue;
+            }
+            ctx.beginPath();
+            const angleTo = GUt.countAngle(connection.x - this.x, connection.y - this.y);
+            const pointStart = GUt.pointRelativeToAngle(this.x, this.y, this.d, this.w / 2, angleTo);
+            const pointEnd = GUt.pointRelativeToAngle(connection.x, connection.y, connection.d, connection.w / 2, angleTo + 180);
+            ctx.moveTo(pointStart.x, pointStart.y);
+            ctx.lineTo(pointEnd.x, pointEnd.y);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+        }
     }
 
     saveDict() {

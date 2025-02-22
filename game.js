@@ -20,6 +20,9 @@ const MODAL = new GModal();
  */
 const STORAGE = new GStorage("space-rts");
 
+/** @type {ServerConnection} */
+let SERVER;
+
 /** @type {GEG} */
 let GAME;
 
@@ -36,11 +39,15 @@ async function start() {
 
     GAME.fps = 30;
 
-    const server = new ServerConnection();
-    server.onEventListener((event, source, data) => {
+    SERVER = new ServerConnection();
+    SERVER.onEventListener((event, source, data) => {
         console.log('[SERVER] Event', event, source, data);
     });
-    setInterval(() => server.sendEvent('ping', {time: Date.now()}), 1000);
+
+    const map = new MapGenerator(GAME);
+    map.generateMap();
+
+    GAME.cameraCenter = {x: map.systems[0].x, y: map.systems[0].y};
 
     GAME.onKeyDown = (key) => {
         switch (key) {
@@ -68,8 +75,9 @@ async function start() {
     GAME.onClick = (x, y) => {
         const pointer = GAME.createObject(x, y);
         pointer.draw = (ctx) => {
+            const size = 8;
             ctx.fillStyle = 'pink';
-            ctx.fillRect(pointer.x - 2, pointer.y - 2, 4, 4);
+            ctx.fillRect(pointer.x - (size / 2), pointer.y - (size / 2), size, size);
         }
         setTimeout(() => pointer.die(), 500);
         GAME.canvas.focus();
