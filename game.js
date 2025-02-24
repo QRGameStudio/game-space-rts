@@ -103,10 +103,18 @@ async function start() {
 
     GAME.onDrag = (start, move) => {
         GAME.cameraOffset = {
-            x: GAME.cameraOffset.x + move.x,
-            y: GAME.cameraOffset.y + move.y
+            x: GAME.cameraOffset.x + move.x * (1 /GAME.zoom),
+            y: GAME.cameraOffset.y + move.y * (1 / GAME.zoom)
         }
     }
+
+    GAME.onScroll = (start, move) => {
+        const newZoom = GAME.zoom - move.y / 1000;
+        if (newZoom < 0.3 || newZoom > 3 || GAME.zoom === newZoom) {
+            return;
+        }
+        GAME.zoom = newZoom;
+    };
 
     initMusic();
     GAME.run();
