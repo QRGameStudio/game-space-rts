@@ -27,6 +27,13 @@ class GEOStarSystem extends GEOSavable {
         console.debug('[System] selecting', this.label.text);
         this.game.cameraCenter = {x: this.x, y: this.y};
         this.constructor.selectedId = this.id;
+
+        [...this.game.objectsOfTypes(GEOShip.t)].forEach((ship) => {
+            if (ship.owner === 'local') {
+                ship.goToSystem(this.label.text, true);
+            }
+        });
+
         return true;
     }
 

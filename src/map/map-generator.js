@@ -21,6 +21,8 @@ class MapGenerator {
                 const distance = 200 + Math.random() * 200;
                 const angle = Math.random() * 360;
                 const position = GUt.pointRelativeToAngle(randomSystem.x, randomSystem.y, randomSystem.d, distance, angle);
+                position.x = Math.round(position.x);
+                position.y = Math.round(position.y);
 
                 const closestSystem = this.systems.reduce((prev, curr) => {
                     const prevDistance = GEG.distanceBetween(prev, position);

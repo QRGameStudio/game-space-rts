@@ -41,12 +41,12 @@ async function start() {
 
     GAME.fps = 30;
 
-    SERVER = new ServerConnection('MAIN', true);
+    SERVER = new ServerConnection('MAIN', true, false);
     new ServerObjectSync(GAME, SERVER);
 
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
-        MAP.generateMap(10);
+        MAP.generateMap(20);
         SERVER.onEventListener(() => {
             console.log('[SERVER] Sending map data');
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
@@ -55,7 +55,18 @@ async function start() {
     new AIOneShip(new ServerConnection('AI-1'));
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
-    GAME.cameraFollowObject = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
+    const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
+    GAME.cameraFollowObject = player;
+
+    if (SERVER.mainServer && false) {
+        SERVER.onEventListener((event, source, data) => {
+            if (source !== SERVER.id) {
+                player.x = data.x;
+                player.y = data.y;
+                player.d = data.d;
+            }
+        }, 'ship:position:update');
+    }
 
     GAME.onKeyDown = (key) => {
         switch (key) {

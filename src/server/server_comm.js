@@ -2,9 +2,10 @@ class ServerConnection {
     /** @type {GameServer | null} */
     static __mockServer = null;
 
-    constructor(id = null, mainServer = false) {
+    constructor(id = null, mainServer = false, verbose = false) {
         this.id = id || GUt.uuid();
         this.mainServer = mainServer;
+        this.verbose = verbose;
 
         /** @type {GameClient} */
         this.__client = {
@@ -49,7 +50,9 @@ class ServerConnection {
      */
     async sendEvent(event, data) {
         data = JSON.stringify(data);
-        console.debug('[Conn] >', event, data);
+        if (this.verbose) {
+            console.debug('[Conn] >', event, data);
+        }
         await this.__client.onEvent(event, data);
     }
 
@@ -65,7 +68,9 @@ class ServerConnection {
 
     async __onServerEvent(event, source, data) {
         data = JSON.parse(data);
-        console.debug('[Conn] <', event, source, data);
+        if (this.verbose) {
+            console.debug('[Conn] <', event, source, data);
+        }
         for (const listener of this.__listeners) {
             if (event.startsWith(listener.prefix)) {
                 listener.callback(event, source, data);
@@ -92,6 +97,27 @@ class ServerCommAsset {
             this.local = server.local;
             this.server_id = server.id;
         }
+
+        this.server.onEventListener((event, source, data) => {
+            if (source === this.server.id) {
+                return;
+            }
+            for (const key in data) {
+                this.parent[key] = data[key];
+            }
+        }, `${this.server_id}/sync::periodic`);
+    }
+
+    syncPosition() {
+        if (!this.server.mainServer || Math.floor(Math.random() * 100) !== 0) {
+            return;
+        }
+
+        this.server.sendEvent(`${this.server_id}/sync::periodic`, {
+            id: this.server_id,
+            x: this.parent.x,
+            y: this.parent.y
+        }).then();
     }
 
     patchMethodName(methodName) {

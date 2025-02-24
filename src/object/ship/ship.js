@@ -59,6 +59,7 @@ class GEOShip extends GEOSavable {
 
     step() {
         super.step();
+        this.conn.syncPosition();
         if (this.route.length) {
             const nextSystem = this.route[0];
             if (this.distanceFrom(nextSystem) > this.r + nextSystem.r) {
@@ -69,14 +70,6 @@ class GEOShip extends GEOSavable {
                 this.s = 0;
                 this.route.shift();
             }
-        }
-
-        if (this.conn.server.mainServer && !this.route.length) {
-            console.debug('[Ship] Route completed');
-            // noinspection JSValidateTypes
-            /** @type {GEOStarSystem[]} */
-            const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
-            this.goToSystem(systems[Math.floor(Math.random() * systems.length)].label.text, true);
         }
     }
 
@@ -94,22 +87,24 @@ class GEOShip extends GEOSavable {
             if (searchedSystems.has(systemCurr)) {
                 break;
             }
-            searchedSystems.add(systemCurr);
-            const nextSystem = systemCurr.connections.reduce((prev, curr) => {
-                const prevDistance = GEG.distanceBetween(prev, systemTarget);
-                const currDistance = GEG.distanceBetween(curr, systemTarget);
-                return prevDistance < currDistance ? prev : curr;
-            });
-            route.push(nextSystem);
-            systemCurr = nextSystem;
+            // Use BFS to find the shortest route
+            searchedSystems.add(systemCurr.id);
+            const next = systemCurr.connections.sort((a, b) => {
+                const distA = a.distanceFrom(systemTarget);
+                const distB = b.distanceFrom(systemTarget);
+                return distA - distB;
+            }).find((system) => !searchedSystems.has(system.id));
+            if (!next) {
+                break;
+            }
+            route.push(next);
+            systemCurr = next;
         }
 
         if (replace) {
             this.route.length = 0;
         }
         this.route.push(...route);
-
-        console.debug('[Ship] Route planned', this.route.map((system) => system.label.text));
     }
 
     saveDict() {
