@@ -56,7 +56,6 @@ async function start() {
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
     const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
-    GAME.cameraFollowObject = player;
 
     if (SERVER.mainServer && false) {
         SERVER.onEventListener((event, source, data) => {
@@ -100,6 +99,13 @@ async function start() {
         }
         setTimeout(() => pointer.die(), 500);
         GAME.canvas.focus();
+    }
+
+    GAME.onDrag = (start, move) => {
+        GAME.cameraOffset = {
+            x: GAME.cameraOffset.x + move.x,
+            y: GAME.cameraOffset.y + move.y
+        }
     }
 
     initMusic();
