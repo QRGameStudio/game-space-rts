@@ -25,6 +25,10 @@ class GEOSavable extends GEO {
         this.conn.sendCreationEvent(this.t, params);
     }
 
+    explode() {
+        this.die();
+    }
+
     /**
      * Save
      * @return {Object}

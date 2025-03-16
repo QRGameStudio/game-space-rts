@@ -80,6 +80,9 @@ class ServerConnection {
 }
 
 class ServerCommAsset {
+    /** @type {Map<string, ServerCommAsset>} */
+    static __mapID = new Map();
+
     /**
      * @param server {{server: ServerConnection, local?: boolean, id?: string}}
      * @param parent {Object}
@@ -89,6 +92,7 @@ class ServerCommAsset {
     constructor(server, parent, assetId = null, assetCategory = 'asset') {
         this.server = server.server;
         this.parent = parent;
+        /** @type {boolean} True if the object was originally created locally */
         this.local = true;
         assetId = assetId || GUt.uuid();
         this.server_id = this.server.generateAssetId(assetId, assetCategory);
@@ -106,6 +110,15 @@ class ServerCommAsset {
                 this.parent[key] = data[key];
             }
         }, `${this.server_id}/sync::periodic`);
+        this.server.onEventListener((event, source, data) => {
+            this.constructor.__mapID.delete(data.id);
+        }, `${this.server_id}/patchedMethod:die`);
+
+        this.constructor.__mapID.set(server.id, this);
+
+        if (parent.hasOwnProperty('die')) {
+            this.patchMethod(parent.die);
+        }
     }
 
     syncPosition() {
@@ -124,9 +137,21 @@ class ServerCommAsset {
         const orig = this.parent[methodName];
         const eventName = `${this.server_id}/patchedMethod:${methodName}`;
         this.server.onEventListener((event, source, data) => {
+            data = data.map(arg => {
+                if (typeof arg === 'string' && arg.startsWith('GEO::')) {
+                    return this.constructor.__mapID.get(arg.split('::')[1]).parent;
+                }
+                return arg;
+            });
             orig.apply(this.parent, data);
         }, eventName);
         this.parent[methodName] = (...args) => {
+            args = args.map(arg => {
+               if (arg instanceof GEO && arg.conn?.server_id) {
+                   return `GEO::${arg.conn.server_id}`;
+               }
+                return arg;
+            });
             this.server.sendEvent(eventName, [...args]).then();
         }
     }

@@ -53,7 +53,7 @@ async function start() {
 
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
-        MAP.generateMap(20);
+        MAP.generateMap(5);
         SERVER.onEventListener(() => {
             console.log('[SERVER] Sending map data');
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())

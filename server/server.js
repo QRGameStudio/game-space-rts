@@ -26,6 +26,7 @@ class GameServer {
 
         this.clients.push(client);
         client.onEvent = (event, data) => {
+            // console.log(`[SERVER] Client event: ${event}`, data);
             switch (event) {
                 case 'disconnect':
                     this.removeClient(client);

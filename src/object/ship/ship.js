@@ -29,16 +29,19 @@ class GEOShip extends GEOSelectable {
                 this.w = 75;
                 this.h = 75;
                 this.health = 75;
+                this.damage = 3;
                 break;
             case "fighter":
                 this.w = 75;
                 this.h = 25;
                 this.health = 150;
+                this.damage = 10;
                 break;
             case "bomber":
                 this.w = 25;
                 this.h = 75;
                 this.health = 100;
+                this.damage = 6;
                 break;
             default:
                 throw new Error(`Unknown ship class ${shipClass}`);
@@ -53,10 +56,14 @@ class GEOShip extends GEOSelectable {
         this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
         this.y = this.system.y + Math.random() * ( this.system.h * 1.5) - ( this.system.h / 2 );
 
+        /** @type {Date|null} */
+        this.__laser_timeout = null;
+
         /** @type {GEOStarSystem[]} */
         this.route = [];
 
         this.conn.patchMethod(this.goToSystem);
+        this.conn.patchMethod(this.__fireLaser);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
@@ -83,13 +90,45 @@ class GEOShip extends GEOSelectable {
         ctx.stroke();
     }
 
+    die() {
+        if (this.system) {
+            this.system.ships.delete(this);
+        }
+        super.die();
+    }
+
+    /**
+     *
+     * @param to {GEO}
+     */
+    __fireLaser(to) {
+        if (this.__laser_timeout !== null && this.__laser_timeout > new Date()) {
+            return;
+        }
+        this.__laser_timeout = new Date(new Date().getTime() + 2000 + Math.random() * 500);
+        new GEOLaser(this.game, this, to);
+        if (to.hasOwnProperty('health')) {
+            to.health -= this.damage;
+        }
+    }
+
     step() {
         super.step();
         this.conn.syncPosition();
+        const enemyShipsInSystem = this.system && [...this.system.ships].filter(x => x.owner !== this.owner) || [];
+        if (this.conn.server.mainServer && enemyShipsInSystem.length) {
+            const target = enemyShipsInSystem[Math.floor(Math.random() * enemyShipsInSystem.length)];
+            this.__fireLaser(target);
+        }
+
+        if (this.health <= 0) {
+            this.explode();
+        }
+
         if (this.route.length) {
             let canLeave = true;
             if (this.system) {
-                if ([...this.system.ships].find(x => x.owner !== this.owner)) {
+                if (enemyShipsInSystem.length) {
                     canLeave = false;
                 } else if (!this.isInSystem(this.system)) {
                     this.system.ships.delete(this);
