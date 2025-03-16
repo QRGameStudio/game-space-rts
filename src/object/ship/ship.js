@@ -9,6 +9,7 @@
 
 class GEOShip extends GEOSavable {
     static t = 'ship';
+    static selectedId = null;
 
     /**
      *
@@ -26,6 +27,7 @@ class GEOShip extends GEOSavable {
         this.conn = new ServerCommAsset(server, this);
         this.owner = owner;
         this.health = 100;
+        this.clickable = true;
 
         this.color = color;
         this.system = this.__systemByName(systemName);
@@ -43,8 +45,16 @@ class GEOShip extends GEOSavable {
         this.conn.sendCreationEvent(this.constructor.t, params);
     }
 
+    onclick(x, y, clickedObject) {
+        if (this.owner !== 'local') {
+            return;
+        }
+        this.constructor.selectedId = this.id;
+        return true;
+    }
+
     draw(ctx) {
-        ctx.strokeStyle = this.color;
+        ctx.strokeStyle = this.constructor.selectedId === this.id ? 'orange' : this.color;
         ctx.lineWidth = 5;
         ctx.beginPath();
         // front

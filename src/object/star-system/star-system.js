@@ -24,15 +24,25 @@ class GEOStarSystem extends GEOSavable {
     }
 
     onclick(x, y, clickedObject) {
-        console.debug('[System] selecting', this.label.text);
-        this.game.cameraCenter = {x: this.x, y: this.y};
-        this.constructor.selectedId = this.id;
+        if (clickedObject.size > 1) {
+            return false;
+        }
 
-        [...this.game.objectsOfTypes(GEOShip.t)].forEach((ship) => {
-            if (ship.owner === 'local') {
-                ship.goToSystem(this.label.text, true);
+        console.debug('[System] selecting', this.label.text);
+        this.constructor.selectedId = this.id;
+        if (GEOShip.selectedId !== null) {
+            /** @type {GEOShip | undefined} */
+            const ship = [...this.game.objectsOfTypes(GEOShip.t)].find((ship) => ship.id === GEOShip.selectedId);
+            if (ship) {
+                ship.goToSystem(this.label.text);
+                setTimeout(() =>{
+                    if (this.constructor.selectedId === this.id) {
+                        this.constructor.selectedId = null;
+                        GEOShip.selectedId = null;
+                    }
+                }, 200);
             }
-        });
+        }
 
         return true;
     }
@@ -58,9 +68,6 @@ class GEOStarSystem extends GEOSavable {
         ctx.stroke();
 
         for (const connection of this.connections) {
-            if (connection.id < this.id) {
-                continue;
-            }
             ctx.beginPath();
             const angleTo = GUt.countAngle(connection.x - this.x, connection.y - this.y);
             const pointStart = GUt.pointRelativeToAngle(this.x, this.y, this.d, this.w / 2, angleTo);

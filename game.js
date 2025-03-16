@@ -56,6 +56,7 @@ async function start() {
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
     const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
+    const station = new GEOStation(GAME, {server: SERVER}, 'blue', MAP.systems[0].label.text, "local");
 
     if (SERVER.mainServer && false) {
         SERVER.onEventListener((event, source, data) => {

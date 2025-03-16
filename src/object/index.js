@@ -3,3 +3,4 @@
 // !G.import('laser.js')
 // !G.import('label.js')
 // !G.import('ship/index.js')
+// !G.import('station/index.js')

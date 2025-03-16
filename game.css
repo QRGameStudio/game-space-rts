@@ -67,6 +67,7 @@ body, #game-layer {
 }
 
 .controls-c {
+    pointer-events: none;
     opacity: 0.5;
     position: fixed;
     bottom: 1em;
