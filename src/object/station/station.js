@@ -24,6 +24,10 @@ class GEOStation extends GEOSelectable {
         this.sendCreationEvent(arguments);
     }
 
+    build(objClass) {
+        new GEOShip(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner, objClass);
+    }
+
     onclick(x, y, clickedObject) {
         if (this.owner !== 'local') {
             return false;

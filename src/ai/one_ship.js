@@ -18,7 +18,7 @@ class AIOneShip {
         new ServerObjectSync(this.game, this.server);
 
         const ships = [
-            new GEOShip(this.game, {server: this.server}, 'red', this.map.systems[4].label.text, 'ai')
+            new GEOShip(this.game, {server: this.server}, 'red', this.map.systems[4].label.text, 'ai', 'builder'),
         ];
 
         this.game.onStep = async () => {

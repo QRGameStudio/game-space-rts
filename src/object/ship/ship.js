@@ -5,6 +5,8 @@
  *     accuracy: number,
  *     slowTo: number,
  * }} GEOShipAutopilot
+ *
+ * @typedef {'fighter' | 'bomber' | 'builder'} GEOShipClass
  */
 
 class GEOShip extends GEOSelectable {
@@ -17,13 +19,32 @@ class GEOShip extends GEOSelectable {
      * @param color {string}
      * @param systemName {string}
      * @param owner {string}
+     * @param shipClass {GEOShipClass}
      */
-    constructor(game, server, color, systemName, owner) {
+    constructor(game, server, color, systemName, owner, shipClass) {
         super(game, server, owner);
-        this.w = 75;
-        this.h = 25;
+
+        switch (shipClass) {
+            case "builder":
+                this.w = 75;
+                this.h = 75;
+                this.health = 75;
+                break;
+            case "fighter":
+                this.w = 75;
+                this.h = 25;
+                this.health = 150;
+                break;
+            case "bomber":
+                this.w = 25;
+                this.h = 75;
+                this.health = 100;
+                break;
+            default:
+                throw new Error(`Unknown ship class ${shipClass}`);
+        }
+
         this.t = this.constructor.t;
-        this.health = 100;
         this.clickable = true;
 
         this.color = color;
@@ -83,6 +104,7 @@ class GEOShip extends GEOSelectable {
      */
     goToSystem(systemName, replace = false) {
         const systemTarget = this.__systemByName(systemName);
+        /** @type {GEOStarSystem} */
         let systemCurr = this.system;
         const searchedSystems = new Set();
         const route = [];
@@ -126,6 +148,12 @@ class GEOShip extends GEOSelectable {
         this.inventory.parse(data.inventory);
     }
 
+    /**
+     *
+     * @param systemName {string}
+     * @return {GEOStarSystem}
+     * @private
+     */
     __systemByName(systemName) {
         const system = [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
         if (!system) {

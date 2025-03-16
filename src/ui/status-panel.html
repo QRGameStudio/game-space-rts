@@ -10,11 +10,10 @@
         <b>system</b>
     </div>
 
-
     <div r-if="v.selected.t === 'station'" class="buttons">
-        <button class="btn btn-light">Fighter</button>
-        <button class="btn btn-primary">Builder</button>
-        <button class="btn btn-warning">Bomber</button>
+        <button class="btn btn-light" r-click="v.selected.build('fighter')">Fighter</button>
+        <button class="btn btn-primary" r-click="v.selected.build('builder')">Builder</button>
+        <button class="btn btn-warning" r-click="v.selected.build('bomber')">Bomber</button>
         <button class="btn btn-danger">Self-destruct</button>
     </div>
 </div>

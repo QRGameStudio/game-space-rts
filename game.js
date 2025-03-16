@@ -62,7 +62,7 @@ async function start() {
     new AIOneShip(new ServerConnection('AI-1'));
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
-    const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local");
+    const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local", "builder");
     const station = new GEOStation(GAME, {server: SERVER}, 'blue', MAP.systems[0].label.text, "local");
 
     if (SERVER.mainServer && false) {
@@ -124,14 +124,13 @@ async function start() {
         GAME.zoom = newZoom;
     };
 
+    let selected_object_last = SELECTED_OBJECT;
     GAME.onStep = () => {
-
-        if (SELECTED_OBJECT !== null) {
+        if (selected_object_last !== SELECTED_OBJECT) {
+            selected_object_last = SELECTED_OBJECT;
             CONTROLS_RENDERED.variables.selected = SELECTED_OBJECT;
-        } else {
-            CONTROLS_RENDERED.variables.selected = null;
+            CONTROLS_RENDERED.render();
         }
-        CONTROLS_RENDERED.render();
     }
 
     initMusic();
