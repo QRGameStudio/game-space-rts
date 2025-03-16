@@ -12,6 +12,8 @@ class GEOStarSystem extends GEOSelectable {
         this.t = GEOStarSystem.t;
         this.x = x;
         this.y = y;
+        /** @type {Set<GEOShip>} */
+        this.ships = new Set();
         this.label = new GEOLabel(this.game, this, randomName());
         this.gonioCoefficient = 2 * PI / this.sides;
         this.clickable = true;

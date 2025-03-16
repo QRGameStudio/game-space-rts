@@ -48,6 +48,7 @@ class GEOShip extends GEOSelectable {
         this.clickable = true;
 
         this.color = color;
+        /** @type {GEOStarSystem | null} */
         this.system = this.__systemByName(systemName);
         this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
         this.y = this.system.y + Math.random() * ( this.system.h * 1.5) - ( this.system.h / 2 );
@@ -57,6 +58,7 @@ class GEOShip extends GEOSelectable {
 
         this.conn.patchMethod(this.goToSystem);
         this.sendCreationEvent(arguments);
+        this.goToSystem(systemName, true);
     }
 
     onclick(x, y, clickedObject) {
@@ -85,16 +87,44 @@ class GEOShip extends GEOSelectable {
         super.step();
         this.conn.syncPosition();
         if (this.route.length) {
-            const nextSystem = this.route[0];
-            if (this.distanceFrom(nextSystem) > this.r + nextSystem.r) {
-                this.d = this.angleTo(nextSystem);[...arguments].shift()
-                this.s = 2;
-            } else {
-                this.system = nextSystem;
-                this.s = 0;
-                this.route.shift();
+            let canLeave = true;
+            if (this.system) {
+                if ([...this.system.ships].find(x => x.owner !== this.owner)) {
+                    canLeave = false;
+                } else if (!this.isInSystem(this.system)) {
+                    this.system.ships.delete(this);
+                    this.system = null;
+                }
+            }
+
+            if (canLeave) {
+                const nextSystem = this.route[0];
+                if (this.isInSystem(nextSystem)) {
+                    this.d = this.angleTo(nextSystem);[...arguments].shift()
+                    this.s = 2;
+                } else {
+                    if (this.system) {
+                        this.system.ships.delete(this);
+                    }
+                    this.system = nextSystem;
+                    this.system.ships.add(this);
+                    this.s = 0;
+                    this.route.shift();
+                }
             }
         }
+    }
+
+    /**
+     *
+     * @param system {GEOStarSystem | null}
+     * @return {boolean}
+     */
+    isInSystem(system) {
+        if (!system) {
+            return false;
+        }
+        return this.distanceFrom(system) > this.r + system.r;
     }
 
     /**
@@ -104,10 +134,14 @@ class GEOShip extends GEOSelectable {
      */
     goToSystem(systemName, replace = false) {
         const systemTarget = this.__systemByName(systemName);
-        /** @type {GEOStarSystem} */
-        let systemCurr = this.system;
         const searchedSystems = new Set();
         const route = [];
+        let systemCurr = this.system;
+        if (systemCurr === null) {
+            console.assert(this.route.length > 0, 'No route and no current system');
+            systemCurr = this.route[0];
+        }
+        route.push(systemCurr);
         while (systemCurr !== systemTarget) {
             if (searchedSystems.has(systemCurr)) {
                 break;
