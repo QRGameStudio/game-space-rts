@@ -1,4 +1,30 @@
+/**
+ * @typedef {{server: ServerConnection, local?: boolean, id?: string}} GEOServerConnection
+ */
+
 class GEOSavable extends GEO {
+    /**
+     *
+     * @param geg {GEG}
+     * @param server {GEOServerConnection | null}
+     * @param owner {string | null}
+     */
+    constructor(geg, server, owner) {
+        super(geg);
+        this.conn = server !== null ? new ServerCommAsset(server, this) : null;
+        this.owner = owner;
+    }
+
+    sendCreationEvent(args) {
+        if (!this.conn) {
+            return;
+        }
+        const params = [...args];
+        params.shift();
+        params.shift();
+        this.conn.sendCreationEvent(this.t, params);
+    }
+
     /**
      * Save
      * @return {Object}

@@ -13,18 +13,16 @@ class GEOShip extends GEOSelectable {
     /**
      *
      * @param game {GEG}
-     * @param server {{server: ServerConnection, local?: boolean, id?: string}}
+     * @param server {GEOServerConnection}
      * @param color {string}
      * @param systemName {string}
      * @param owner {string}
      */
     constructor(game, server, color, systemName, owner) {
-        super(game);
+        super(game, server, owner);
         this.w = 75;
         this.h = 25;
         this.t = this.constructor.t;
-        this.conn = new ServerCommAsset(server, this);
-        this.owner = owner;
         this.health = 100;
         this.clickable = true;
 
@@ -37,11 +35,7 @@ class GEOShip extends GEOSelectable {
         this.route = [];
 
         this.conn.patchMethod(this.goToSystem);
-
-        const params = [...arguments];
-        params.shift();
-        params.shift();
-        this.conn.sendCreationEvent(this.constructor.t, params);
+        this.sendCreationEvent(arguments);
     }
 
     onclick(x, y, clickedObject) {
@@ -133,6 +127,10 @@ class GEOShip extends GEOSelectable {
     }
 
     __systemByName(systemName) {
-        return [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
+        const system = [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
+        if (!system) {
+            throw new Error(`System ${systemName} not found`);
+        }
+        return system;
     }
 }

@@ -3,11 +3,10 @@ class AIOneShip {
     constructor(server) {
         this.server = server;
         this.game = new GEG(document.createElement('canvas'), false);
-        new ServerObjectSync(this.game, server);
         this.map = new MapGenerator(this.game, this.server);
 
         this.server.onEventListener((event, source, data) => {
-            console.log('[AI] Received map data, creating ship');
+            console.log('[AI] Received map data, creating ship', data);
             this.map.loadDict(data);
             this.game.run();
             this.__start();
@@ -16,6 +15,8 @@ class AIOneShip {
     }
 
     __start() {
+        new ServerObjectSync(this.game, this.server);
+
         const ships = [
             new GEOShip(this.game, {server: this.server}, 'red', this.map.systems[4].label.text, 'ai')
         ];

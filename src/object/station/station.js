@@ -4,30 +4,24 @@ class GEOStation extends GEOSelectable {
     /**
      *
      * @param game {GEG}
-     * @param server {{server: ServerConnection, local?: boolean, id?: string}}
+     * @param server {GEOServerConnection}
      * @param color {string}
      * @param systemName {string}
      * @param owner {string}
      */
     constructor(game, server, color, systemName, owner) {
-        super(game);
+        super(game, server, owner);
         this.w = 40;
         this.h = 40;
         this.t = this.constructor.t;
-        this.conn = new ServerCommAsset(server, this);
-        this.owner = owner;
         this.health = 100;
         this.clickable = true;
 
         this.color = color;
         this.system = this.__systemByName(systemName);
-        this.x = this.system.x + Math.random() * ( this.system.w * 1.5) - ( this.system.w / 2 );
-        this.y = this.system.y + Math.random() * ( this.system.h * 1.5) - ( this.system.h / 2 );
-
-        const params = [...arguments];
-        params.shift();
-        params.shift();
-        this.conn.sendCreationEvent(this.constructor.t, params);
+        this.x = this.system.x + this.system.wh + 15 + this.w;
+        this.y = this.system.y
+        this.sendCreationEvent(arguments);
     }
 
     onclick(x, y, clickedObject) {

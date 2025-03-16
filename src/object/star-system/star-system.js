@@ -7,7 +7,7 @@ class GEOStarSystem extends GEOSelectable {
      * @param y {number}
      */
     constructor(game, x, y) {
-        super(game);
+        super(game, null, null);
         this.sides = 8;
         this.t = GEOStarSystem.t;
         this.x = x;
