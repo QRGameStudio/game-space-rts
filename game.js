@@ -62,8 +62,8 @@ async function start() {
     new AIOneShip(new ServerConnection('AI-1'));
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
-    const player = new GEOShip(GAME, {server: SERVER}, 'white', MAP.systems[0].label.text, "local", "builder");
-    const station = new GEOStation(GAME, {server: SERVER}, 'blue', MAP.systems[0].label.text, "local");
+    const player = new GEOShip(GAME, {server: SERVER}, '#33d4ff', MAP.systems[0].label.text, "local", "builder");
+    const station = new GEOStation(GAME, {server: SERVER}, '#33d4ff', MAP.systems[0].label.text, "local");
 
     if (SERVER.mainServer && false) {
         SERVER.onEventListener((event, source, data) => {

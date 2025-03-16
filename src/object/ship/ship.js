@@ -151,6 +151,21 @@ class GEOShip extends GEOSelectable {
                     this.route.shift();
                 }
             }
+        } else {
+            if (this.system) {
+                const ships = [...this.system.ships].filter(x => x.id !== this.id);
+                for (let i = 0; i < 10; i++) {
+                    const colliding = ships.find(x => this.distanceFrom(x) < this.r + x.r);
+                    if (!colliding) {
+                        break;
+                    }
+                    if (Math.random() > 0.5) {
+                        this.x = this.x + (this.x - colliding.x);
+                    } else {
+                        this.y = this.y + (this.y - colliding.y);
+                    }
+                }
+            }
         }
     }
 
