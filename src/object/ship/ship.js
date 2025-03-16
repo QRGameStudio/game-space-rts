@@ -7,9 +7,8 @@
  * }} GEOShipAutopilot
  */
 
-class GEOShip extends GEOSavable {
+class GEOShip extends GEOSelectable {
     static t = 'ship';
-    static selectedId = null;
 
     /**
      *
@@ -49,7 +48,7 @@ class GEOShip extends GEOSavable {
         if (this.owner !== 'local') {
             return;
         }
-        this.constructor.selectedId = this.id;
+        this.selectObject();
         return true;
     }
 

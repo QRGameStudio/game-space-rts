@@ -1,6 +1,5 @@
-class GEOStation extends GEOSavable {
+class GEOStation extends GEOSelectable {
     static t = 'station';
-    static selectedId = null;
 
     /**
      *
@@ -33,9 +32,13 @@ class GEOStation extends GEOSavable {
 
     onclick(x, y, clickedObject) {
         if (this.owner !== 'local') {
-            return;
+            return false;
         }
-        this.constructor.selectedId = this.id;
+        if ([...clickedObject].find(x => x.t === GEOShip.t)) {
+            // if also ship is clicked, prefer the ship
+            return false;
+        }
+        this.selectObject();
         return true;
     }
 

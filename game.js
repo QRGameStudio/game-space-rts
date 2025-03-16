@@ -28,6 +28,13 @@ let MAP;
 /** @type {GEG} */
 let GAME;
 
+/** @type {GEO|null} */
+let SELECTED_OBJECT = null;
+
+const CONTROLS_RENDERED = new GRenderer(
+    document.querySelector('#controls-c'),
+    {'selected': null}
+)
 
 async function start() {
     // noinspection JSValidateTypes
@@ -116,6 +123,16 @@ async function start() {
         }
         GAME.zoom = newZoom;
     };
+
+    GAME.onStep = () => {
+
+        if (SELECTED_OBJECT !== null) {
+            CONTROLS_RENDERED.variables.selected = SELECTED_OBJECT;
+        } else {
+            CONTROLS_RENDERED.variables.selected = null;
+        }
+        CONTROLS_RENDERED.render();
+    }
 
     initMusic();
     GAME.run();

@@ -1,4 +1,5 @@
 // !G.import('savable.js')
+// !G.import('selectable.js')
 // !G.import('star-system/index.js')
 // !G.import('laser.js')
 // !G.import('label.js')

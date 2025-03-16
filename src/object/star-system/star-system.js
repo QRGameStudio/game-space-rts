@@ -1,6 +1,5 @@
-class GEOStarSystem extends GEOSavable {
+class GEOStarSystem extends GEOSelectable {
     static t = 'system';
-    static selectedId = null;
 
     /**
      * @param game {GEG}
@@ -42,6 +41,8 @@ class GEOStarSystem extends GEOSavable {
                     }
                 }, 200);
             }
+        } else {
+            this.selectObject();
         }
 
         return true;
