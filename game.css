@@ -18,9 +18,9 @@ body, #game-layer {
     overflow: hidden;
 }
 
-#game-canvas {
+#game-canvas, #ai-canvas {
     width: 100% !important;
-    height: 100% !important;
+    height: 50% !important;
     margin: 0;
     padding: 0;
 }

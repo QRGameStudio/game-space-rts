@@ -59,7 +59,7 @@ async function start() {
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
         }, "map:fetch:request");
     }
-    new AIOneShip(new ServerConnection('AI-1'));
+    await (new AIOneShip(new ServerConnection())).start();
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
     const player = new GEOShip(GAME, {server: SERVER}, '#33d4ff', MAP.systems[0].label.text, "local", "builder");

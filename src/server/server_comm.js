@@ -7,6 +7,9 @@ class ServerConnection {
         this.mainServer = mainServer;
         this.verbose = verbose;
 
+        /** @type {Map<string, ServerCommAsset>} */
+        this.assetMap = new Map();
+
         /** @type {GameClient} */
         this.__client = {
             id: this.id,
@@ -80,9 +83,6 @@ class ServerConnection {
 }
 
 class ServerCommAsset {
-    /** @type {Map<string, ServerCommAsset>} */
-    static __mapID = new Map();
-
     /**
      * @param server {{server: ServerConnection, local?: boolean, id?: string}}
      * @param parent {Object}
@@ -107,18 +107,21 @@ class ServerCommAsset {
                 return;
             }
             for (const key in data) {
-                this.parent[key] = data[key];
+                switch (key) {
+                    case 'id':
+                        break;
+                    case 'data':
+                        this.parent.data = JSON.parse(data[key]);
+                        break;
+                    default:
+                        this.parent[key] = data[key];
+                        break
+                }
             }
         }, `${this.server_id}/sync::periodic`);
-        this.server.onEventListener((event, source, data) => {
-            this.constructor.__mapID.delete(data.id);
-        }, `${this.server_id}/patchedMethod:die`);
 
-        this.constructor.__mapID.set(server.id, this);
-
-        if (parent.hasOwnProperty('die')) {
-            this.patchMethod(parent.die);
-        }
+        console.assert(!this.server.assetMap.has(this.server_id), 'Server ID already exists');
+        this.server.assetMap.set(this.server_id, this);
     }
 
     syncPosition() {
@@ -129,7 +132,10 @@ class ServerCommAsset {
         this.server.sendEvent(`${this.server_id}/sync::periodic`, {
             id: this.server_id,
             x: this.parent.x,
-            y: this.parent.y
+            y: this.parent.y,
+            s: this.parent.s,
+            d: this.parent.d,
+            data: JSON.stringify(this.parent.data)
         }).then();
     }
 
@@ -139,7 +145,10 @@ class ServerCommAsset {
         this.server.onEventListener((event, source, data) => {
             data = data.map(arg => {
                 if (typeof arg === 'string' && arg.startsWith('GEO::')) {
-                    return this.constructor.__mapID.get(arg.split('::')[1]).parent;
+                    const assetServerId = arg.split('::')[1];
+                    const asset = this.server.assetMap.get(assetServerId);
+                    console.assert(typeof asset !== 'undefined', `Asset ${assetServerId} not found in local server ${this.server.id} (${this.server.assetMap.size}:${[...this.server.assetMap.keys()]})`);
+                    return asset.parent;
                 }
                 return arg;
             });

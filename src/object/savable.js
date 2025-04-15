@@ -26,6 +26,7 @@ class GEOSavable extends GEO {
     }
 
     explode() {
+        console.log('Explode', this.id, this.conn.server.mainServer);
         this.die();
     }
 

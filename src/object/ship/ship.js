@@ -99,16 +99,25 @@ class GEOShip extends GEOSelectable {
 
     /**
      *
-     * @param to {GEO}
+     * @param to {GEO & {health: number}}
      */
-    __fireLaser(to) {
+    fireLaser(to) {
         if (this.__laser_timeout !== null && this.__laser_timeout > new Date()) {
             return;
         }
         this.__laser_timeout = new Date(new Date().getTime() + 2000 + Math.random() * 500);
-        new GEOLaser(this.game, this, to);
+        this.__fireLaser(to, to.health - this.damage);
+    }
+
+    /**
+     *
+     * @param to {GEO}
+     * @param health {number}
+     */
+    __fireLaser(to, health) {
+        new GEOLaser(this.game, this, to, this.color);
         if (to.hasOwnProperty('health')) {
-            to.health -= this.damage;
+            to.health = health;
         }
     }
 
@@ -116,9 +125,9 @@ class GEOShip extends GEOSelectable {
         super.step();
         this.conn.syncPosition();
         const enemyShipsInSystem = this.system && [...this.system.ships].filter(x => x.owner !== this.owner) || [];
-        if (this.conn.server.mainServer && enemyShipsInSystem.length) {
+        if (this.conn.server.mainServer && this.owner === 'local' && enemyShipsInSystem.length) {
             const target = enemyShipsInSystem[Math.floor(Math.random() * enemyShipsInSystem.length)];
-            this.__fireLaser(target);
+            this.fireLaser(target);
         }
 
         if (this.health <= 0) {
