@@ -167,7 +167,8 @@ class GEOStarSystem extends GEOSelectable {
         if (GEOShip.selectedId !== null) {
             const ship = [...this.game.objectsOfTypes(GEOShip.t)].find(s => s.id === GEOShip.selectedId);
             if (ship) {
-                ship.goToSystem(this.label.text);
+                ship.stop();
+                ship.goToSystem(this.label.text, true);
                 setTimeout(() => {
                     if (this.constructor.selectedId === this.id) {
                         this.constructor.selectedId = null;
@@ -275,10 +276,10 @@ class GEOStarSystem extends GEOSelectable {
             ctx.lineTo(pointEnd.x, pointEnd.y);
             const laneVisible = isVisible || connection.visible;
             const sharedOwner = this.owner !== null && this.owner === connection.owner;
-            ctx.strokeStyle = sharedOwner
+            ctx.strokeStyle = (sharedOwner && laneVisible)
                 ? GEOStarSystem.ownerColor(this.owner)
                 : (laneVisible ? '#546E7A' : '#1a2030');
-            ctx.lineWidth = sharedOwner ? 3 : 2;
+            ctx.lineWidth = (sharedOwner && laneVisible) ? 3 : 2;
             ctx.stroke();
         }
 

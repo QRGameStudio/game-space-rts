@@ -88,6 +88,9 @@ class GEOShip extends GEOSelectable {
         this.__modeTick = 0;
 
         this.conn.patchMethod(this.goToSystem);
+        this.conn.patchMethod(this.setMode);
+        this.conn.patchMethod(this.stop);
+        this.conn.patchMethod(this.buildShipyard);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
@@ -115,8 +118,17 @@ class GEOShip extends GEOSelectable {
     }
 
     draw(ctx) {
-        // Hide enemy ships in systems outside the player's fog-of-war (with linger)
-        if (this.owner !== 'local' && this.system && !this.system.visible) return;
+        // Hide enemy ships outside the player's fog-of-war
+        if (this.owner !== 'local') {
+            if (this.system) {
+                if (!this.system.visible) return;
+            } else {
+                // In transit: hide if neither the departed system nor the next waypoint is visible
+                const from = this.__previousSystem;
+                const to   = this.route.length > 0 ? this.route[0] : null;
+                if ((!from || !from.visible) && (!to || !to.visible)) return;
+            }
+        }
 
         const selected = this.constructor.selectedId === this.id;
         ctx.strokeStyle = selected ? 'orange' : this.color;
@@ -257,36 +269,40 @@ class GEOShip extends GEOSelectable {
     setMode(mode) {
         this.mode = mode;
         this.__modeTick = 0;
+        this.__evaluateMode();
     }
 
     /** Pick next destination based on current automation mode. */
     __evaluateMode() {
         const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
-        const hasEnemy = (sys) => [...sys.ships].some(s => s.owner !== this.owner);
+        const hasEnemy = (sys) => (sys.owner !== null && sys.owner !== this.owner) || [...sys.ships].some(s => s.owner !== this.owner);
         const tryGo = (sys) => { try { this.goToSystem(sys.label.text, true); } catch (_) {} };
 
-        if (this.mode === 'search') {
-            // Visit non-player systems that currently have no enemies
-            const candidates = allSystems.filter(s => s !== this.system
-                && s.owner !== this.owner && !hasEnemy(s));
-            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
-            return;
-        }
+        let actionTaken = false;
 
         if (this.mode === 'search-defend') {
             // Park one hop away from an enemy-occupied system
             const candidates = allSystems.filter(s => s !== this.system
                 && !hasEnemy(s)
                 && s.connections.some(c => hasEnemy(c)));
-            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
-            return;
-        }
-
-        if (this.mode === 'search-destroy') {
+            if (candidates.length) {
+                tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
+                actionTaken = true;
+            }
+        } else if (this.mode === 'search-destroy') {
             // Rush the nearest visible enemy system within 3 hops
             const target = this.__findEnemySystemWithinRange(3);
-            if (target) tryGo(target);
-            return;
+            if (target) {
+                tryGo(target);
+                actionTaken = true;
+            }
+        }
+
+        if (this.mode === 'search' || (!actionTaken && (this.mode === 'search-defend' || this.mode === 'search-destroy'))) {
+            // Visit non-player systems that currently have no enemies
+            const candidates = allSystems.filter(s => s !== this.system
+                && s.owner !== this.owner && !hasEnemy(s));
+            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
         }
     }
 
@@ -440,7 +456,7 @@ class GEOShip extends GEOSelectable {
 
         // S&DEFEND: if already parked adjacent to an enemy, cancel any further travel
         if (this.mode === 'search-defend' && this.system && this.route.length > 0) {
-            const hasEnemy = (sys) => [...sys.ships].some(s => s.owner !== this.owner);
+            const hasEnemy = (sys) => (sys.owner !== null && sys.owner !== this.owner) || [...sys.ships].some(s => s.owner !== this.owner);
             if (this.system.connections.some(c => hasEnemy(c))) {
                 this.route.length = 0;
             }
@@ -518,27 +534,40 @@ class GEOShip extends GEOSelectable {
      */
     goToSystem(systemName, replace = false) {
         if (!replace) this.mode = null;
-        const systemTarget = this.__systemByName(systemName);
-        const searched = new Set();
-        const route = [];
-        let curr = this.system;
-        if (curr === null) {
+        const target = this.__systemByName(systemName);
+        let start = this.system;
+        if (start === null) {
             console.assert(this.route.length > 0, 'No route and no current system');
-            curr = this.route[0];
+            start = this.route[0];
         }
-        route.push(curr);
-        while (curr !== systemTarget) {
-            if (searched.has(curr.id)) break;
-            searched.add(curr.id);
-            const next = [...curr.connections]
-                .sort((a, b) => a.distanceFrom(systemTarget) - b.distanceFrom(systemTarget))
-                .find(s => !searched.has(s.id));
-            if (!next) break;
-            route.push(next);
-            curr = next;
+
+        // BFS: guarantees shortest path on the system graph
+        const prev = new Map();   // systemId → predecessor system
+        prev.set(start.id, null);
+        const queue = [start];
+        let found = false;
+        outer: while (queue.length > 0) {
+            const node = queue.shift();
+            for (const neighbor of node.connections) {
+                if (!prev.has(neighbor.id)) {
+                    prev.set(neighbor.id, node);
+                    if (neighbor === target) { found = true; break outer; }
+                    queue.push(neighbor);
+                }
+            }
         }
+        if (!found) return;  // target unreachable
+
+        // Reconstruct path: target → ... → start, then reverse
+        const path = [];
+        let node = target;
+        while (node !== null) {
+            path.unshift(node);
+            node = prev.get(node.id);
+        }
+
         if (replace) this.route.length = 0;
-        this.route.push(...route);
+        this.route.push(...path);
     }
 
     saveDict() {

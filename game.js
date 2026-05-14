@@ -37,6 +37,7 @@ const CONTROLS_RENDERED = new GRenderer(
 )
 
 const AI_TEAM = 'ai_player';
+const AI_TEAM_SEP = 'separatistic_ai';
 
 window.deselectAll = function() {
     GEOSelectable.deselectAll();
@@ -72,16 +73,24 @@ async function start() {
 
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
-        MAP.generateMap(60, AI_TEAM);
+        MAP.generateMap(60, AI_TEAM, AI_TEAM_SEP);
+        
+        const aiHome = MAP.systems.find(s => s.owner === AI_TEAM && s.type === 'producing');
+        if (aiHome) new GEOStation(GAME, {server: SERVER}, GEOStarSystem.ownerColor(AI_TEAM), aiHome.label.text, AI_TEAM);
+        
+        const sepHome = MAP.systems.find(s => s.owner === AI_TEAM_SEP && s.type === 'producing');
+        if (sepHome) new GEOStation(GAME, {server: SERVER}, GEOStarSystem.ownerColor(AI_TEAM_SEP), sepHome.label.text, AI_TEAM_SEP);
+
         SERVER.onEventListener(() => {
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
         }, "map:fetch:request");
     }
     await (new AIOneShip(new ServerConnection(), AI_TEAM)).start();
+    await (new AISeparatistic(new ServerConnection(), AI_TEAM_SEP, 10, GAME)).start();
 
-    GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
+    GAME.cameraCenter = {x: MAP.playerStart.x, y: MAP.playerStart.y};
 
-    initPlayer('local', MAP.systems[0], MAP.systems[1]);
+    initPlayer('local', MAP.playerStart, MAP.playerResource);
     GEOStarSystem.computeVisibility(GAME);
 
     GAME.onKeyDown = (key) => {

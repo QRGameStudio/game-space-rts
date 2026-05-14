@@ -31,15 +31,20 @@ class AIOneShip {
     }
 
     get __homeSystem() {
-        return this.map.systems[this.map.systems.length - 1];
+        return this.map.systems.find(s => s.owner === this.teamName && s.type === 'producing');
     }
 
     __spawnDestroyer() {
         const home = this.__homeSystem;
+        window.AI_LOGS = window.AI_LOGS || [];
+        const msg = `[AIOneShip] Spawning destroyer at ${home ? home.label.text : 'null'}`;
+        console.log(msg);
+        window.AI_LOGS.push(msg);
         this.__ship = new GEOShip(
             this.game, {server: this.server}, '#FF1744',
-            home.label.text, this.teamName, 'combat'
+            home ? home.label.text : '', this.teamName, 'combat'
         );
+        this.__ship.setMode('search-destroy');
     }
 
     __start() {

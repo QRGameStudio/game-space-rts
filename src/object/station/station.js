@@ -21,6 +21,7 @@ class GEOStation extends GEOSelectable {
         this.system = this.__systemByName(systemName);
         this.x = this.system.x + this.system.wh + 15 + this.w;
         this.y = this.system.y
+        this.conn.patchMethod(this.build);
         this.sendCreationEvent(arguments);
     }
 
@@ -46,6 +47,9 @@ class GEOStation extends GEOSelectable {
     }
 
     draw(ctx) {
+        if (this.owner !== 'local') {
+            if (!this.system || !this.system.visible) return;
+        }
         ctx.strokeStyle = this.constructor.selectedId === this.id ? 'orange' : this.color;
         ctx.lineWidth = 5;
         ctx.beginPath();

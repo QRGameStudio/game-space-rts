@@ -100,6 +100,11 @@ class GEOTransport extends GEO {
     }
 
     draw(ctx) {
+        // Hide enemy transports outside the player's fog-of-war
+        if (this.owner !== 'local') {
+            const refSystem = this.system ?? (this.route.length > 0 ? this.route[0] : null);
+            if (!refSystem || !refSystem.visible) return;
+        }
         ctx.fillStyle = this.color;
         ctx.beginPath();
         ctx.arc(this.x, this.y, 5, 0, 2 * Math.PI);
