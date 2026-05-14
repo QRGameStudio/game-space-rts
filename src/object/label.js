@@ -23,9 +23,9 @@ class GEOLabel extends GEO {
     }
 
     draw(ctx) {
-        if (!this.owner.isVisible || !this.text) {
-            return;
-        }
+        if (!this.owner.isVisible || !this.text) return;
+        // Respect fog of war: owner may define a `visible` fog-of-war flag
+        if ('visible' in this.owner && !this.owner.visible) return;
 
         ctx.fillStyle = this.color;
         ctx.font = "24px sans";

@@ -25,7 +25,12 @@ class GEOStation extends GEOSelectable {
     }
 
     build(objClass) {
-        new GEOShip(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner, objClass);
+        if (this.system && this.system.type === 'producing') {
+            this.system.addToQueue(objClass);
+        } else {
+            // Fallback: immediate spawn if not a producing node
+            new GEOShip(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner, objClass);
+        }
     }
 
     onclick(x, y, clickedObject) {
@@ -59,18 +64,17 @@ class GEOStation extends GEOSelectable {
 
     saveDict() {
         const data = super.saveDict();
-        data.autopilot = this.__autopilot;
-        data.inventory = this.inventory.stringify();
-        data.label = this.label.text;
-
+        data.systemName = this.system?.label.text;
+        data.color = this.color;
         return data;
     }
 
     loadDict(data) {
         super.loadDict(data);
-        this.__autopilot = data.autopilot;
-        this.label.text = data.label;
-        this.inventory.parse(data.inventory);
+        this.color = data.color;
+        if (data.systemName) {
+            this.system = this.__systemByName(data.systemName);
+        }
     }
 
     __systemByName(systemName) {

@@ -1,19 +1,36 @@
 <!-- Status panel -->
 <div id="controls-c">
-    <div r-if="v.selected.t === 'ship'">
-        <b>ship</b>
-    </div>
-    <div r-if="v.selected.t === 'station'">
-        <b>station</b>
-    </div>
-    <div r-if="v.selected.t === 'system'">
-        <b>system</b>
+    <!-- Ship info -->
+    <div r-if="v.selected && v.selected.t === 'ship'" class="info-block">
+        <b r-var="v.selected.shipClass"></b>&nbsp;
+        HP:<b r-var="v.selected.health"></b>/<b r-var="(GEOShip.MAX_HP||{})[v.selected.shipClass]||'?'"></b>&nbsp;
+        <span r-var="v.selected.veterancy"></span>&nbsp;
+        XP:<span r-var="v.selected.xp"></span>&nbsp;
+        Route:<span r-var="v.selected.route ? v.selected.route.length : 0"></span>
     </div>
 
-    <div r-if="v.selected.t === 'station'" class="buttons">
-        <button class="btn btn-light" r-click="v.selected.build('fighter')">Fighter</button>
-        <button class="btn btn-primary" r-click="v.selected.build('builder')">Builder</button>
-        <button class="btn btn-warning" r-click="v.selected.build('bomber')">Bomber</button>
-        <button class="btn btn-danger">Self-destruct</button>
+    <!-- Station info -->
+    <div r-if="v.selected && v.selected.t === 'station'" class="info-block">
+        <b>SHIPYARD</b>&nbsp;
+        Mat:<b r-var="v.selected.system ? Math.floor(v.selected.system.materials) : 0"></b>&nbsp;
+        <span r-var="v.selected.system && v.selected.system.buildQueue.length ? 'Queue: ' + v.selected.system.buildQueue.map(function(q){return q.shipClass[0].toUpperCase()+'('+Math.ceil(q.ticksLeft/30)+'s)'}).join(' ') : 'Queue: empty'"></span>
+        <span r-if="v.selected.system && v.selected.system.shieldHp > 0">&nbsp;Shield:<span r-var="v.selected.system && v.selected.system.shieldHp"></span>/<span r-var="v.selected.system && v.selected.system.shieldMaxHp"></span></span>
+    </div>
+
+    <!-- System info -->
+    <div r-if="v.selected && v.selected.t === 'system'" class="info-block">
+        <b r-var="v.selected.label && v.selected.label.text"></b>&nbsp;
+        [<span r-var="v.selected.type"></span>]&nbsp;
+        <span r-var="v.selected.owner || 'neutral'"></span>&nbsp;
+        <span r-var="v.selected.ships ? v.selected.ships.size : 0"></span> ships
+        <span r-if="v.selected && v.selected.shieldHp > 0">&nbsp;Shield:<span r-var="v.selected.shieldHp"></span>/<span r-var="v.selected.shieldMaxHp"></span></span>
+    </div>
+
+    <!-- Build buttons (only player's station) -->
+    <div r-if="v.selected && v.selected.t === 'station' && v.selected.owner === 'local'" class="buttons">
+        <button r-click="v.selected.build('combat')">◆ Combat 10M</button>
+        <button r-click="v.selected.build('invasion')">■ Invasion 15M</button>
+        <button r-click="v.selected.build('siege')">▲ Siege 20M</button>
+        <button r-click="v.selected.build('shield')">⬡ Shield 5M</button>
     </div>
 </div>

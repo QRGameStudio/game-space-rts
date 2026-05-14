@@ -3,4 +3,5 @@
 // !G.import('star-system/index.js')
 // !G.import('label.js')
 // !G.import('ship/index.js')
+// !G.import('transport/index.js')
 // !G.import('station/index.js')
