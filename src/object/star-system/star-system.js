@@ -1,6 +1,62 @@
 class GEOStarSystem extends GEOSelectable {
     static t = 'system';
 
+    /** Precomputed set of system IDs visible to the player. Updated each tick by computeVisibility(). */
+    static visibleIds = new Set();
+
+    /** Timestamp (ms) of when each system was last in the visible set. Used for fog-of-war linger. */
+    static __lastVisibleTime = new Map();
+
+    /**
+     * Recompute fog-of-war visibility for the local player and cache in visibleIds.
+     * Rules:
+     *   - Owned systems + their range-1 neighbours
+     *   - Player ships in a system + range-1 neighbours
+     *   - Player stations + range-2 neighbourhood
+     * @param {GEG} game
+     */
+    static computeVisibility(game) {
+        const visible = new Set();
+
+        const addRange1 = (sys) => {
+            visible.add(sys.id);
+            for (const c of sys.connections) visible.add(c.id);
+        };
+
+        const addRange2 = (sys) => {
+            visible.add(sys.id);
+            for (const c of sys.connections) {
+                visible.add(c.id);
+                for (const c2 of c.connections) visible.add(c2.id);
+            }
+        };
+
+        for (const sys of game.objectsOfTypes(GEOStarSystem.t)) {
+            if (sys.owner === 'local') addRange1(sys);
+        }
+        for (const ship of game.objectsOfTypes(GEOShip.t)) {
+            if (ship.owner !== 'local') continue;
+            if (ship.system) {
+                addRange1(ship.system);
+            } else {
+                // In transit: reveal both the system departed from and the next waypoint
+                if (ship.__previousSystem) addRange1(ship.__previousSystem);
+                if (ship.route && ship.route.length > 0) addRange1(ship.route[0]);
+            }
+        }
+        for (const station of game.objectsOfTypes(GEOStation.t)) {
+            if (station.owner === 'local' && station.system) addRange2(station.system);
+        }
+
+        GEOStarSystem.visibleIds = visible;
+
+        // Update linger timestamps for newly-visible systems
+        const now = Date.now();
+        for (const id of visible) {
+            GEOStarSystem.__lastVisibleTime.set(id, now);
+        }
+    }
+
     /** @type {Object.<string,string>} Owner → color */
     static OWNER_COLORS = {
         'local': '#00E5FF',
@@ -62,11 +118,11 @@ class GEOStarSystem extends GEOSelectable {
         this.__repairTick = 0;
     }
 
-    /** Returns true if this system should be visible to the player */
+    /** Returns true if this system is currently visible to the player (fog of war, with 2s linger). */
     get visible() {
-        if (this.owner === 'local') return true;
-        // Adjacent to a player-owned system
-        return this.connections.some(c => c.owner === 'local');
+        if (GEOStarSystem.visibleIds.has(this.id)) return true;
+        const last = GEOStarSystem.__lastVisibleTime.get(this.id);
+        return last !== undefined && Date.now() - last < 2000;
     }
 
     /** @param {string|null} newOwner */
@@ -80,15 +136,18 @@ class GEOStarSystem extends GEOSelectable {
 
     /**
      * Queue a ship or shield build. Only works on producing nodes.
+     * Materials are deducted immediately on queuing.
      * @param {string} shipClass
      */
     addToQueue(shipClass) {
         if (this.type !== 'producing') return;
-        const COSTS   = { combat: 10, invasion: 15, siege: 20, shield: 5 };
-        const TIMES   = { combat: 15 * 30, invasion: 20 * 30, siege: 30 * 30, shield: 10 * 30 };
+        const COSTS = { combat: 10, invasion: 15, siege: 20, shield: 5, builder: 75 };
+        const TIMES = { combat: 15 * 30, invasion: 20 * 30, siege: 30 * 30, shield: 10 * 30, builder: 25 * 30 };
         const cost  = COSTS[shipClass]  ?? 10;
         const ticks = TIMES[shipClass]  ?? 15 * 30;
-        this.buildQueue.push({ shipClass, ticksLeft: ticks, cost });
+        if (this.materials < cost) return; // insufficient materials — silently ignore
+        this.materials -= cost;
+        this.buildQueue.push({ shipClass, ticksLeft: ticks });
     }
 
     /** @param {number} dmg */
@@ -126,7 +185,7 @@ class GEOStarSystem extends GEOSelectable {
         const fps = this.game.fps || 30;
 
         // Resource node: spawn transports
-        if (this.type === 'resource') {
+        if (this.type === 'resource' && this.owner !== null) {
             this.__resourceTick++;
             if (this.__resourceTick >= fps * 10) {
                 this.__resourceTick = 0;
@@ -134,22 +193,17 @@ class GEOStarSystem extends GEOSelectable {
             }
         }
 
-        // Producing node: process build queue
+        // Producing node: process build queue (materials already deducted at queue time)
         if (this.type === 'producing' && this.owner !== null) {
             if (this.buildQueue.length > 0) {
                 const item = this.buildQueue[0];
                 item.ticksLeft--;
                 if (item.ticksLeft <= 0) {
-                    if (this.materials >= item.cost) {
-                        this.materials -= item.cost;
-                        this.buildQueue.shift();
-                        if (item.shipClass === 'shield') {
-                            this.shieldHp = Math.min(this.shieldHp + this.shieldMaxHp, this.shieldMaxHp);
-                        } else {
-                            this.__spawnFleet(item.shipClass);
-                        }
+                    this.buildQueue.shift();
+                    if (item.shipClass === 'shield') {
+                        this.shieldHp = Math.min(this.shieldHp + this.shieldMaxHp, this.shieldMaxHp);
                     } else {
-                        item.ticksLeft = 0; // wait for materials
+                        this.__spawnFleet(item.shipClass);
                     }
                 }
             }
@@ -191,7 +245,7 @@ class GEOStarSystem extends GEOSelectable {
         if (!this.__server?.mainServer) return;
         const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
         const target = systems
-            .filter(s => s !== this && s.type === 'producing' && s.buildQueue.length > 0)
+            .filter(s => s !== this && s.owner === this.owner && s.type === 'producing' && s.materials < 100)
             .sort((a, b) => GEG.distanceBetween(this, a) - GEG.distanceBetween(this, b))[0];
         if (!target) return;
         const color = '#546E7A';
@@ -220,8 +274,11 @@ class GEOStarSystem extends GEOSelectable {
             ctx.moveTo(pointStart.x, pointStart.y);
             ctx.lineTo(pointEnd.x, pointEnd.y);
             const laneVisible = isVisible || connection.visible;
-            ctx.strokeStyle = laneVisible ? '#546E7A' : '#1a2030';
-            ctx.lineWidth = 2;
+            const sharedOwner = this.owner !== null && this.owner === connection.owner;
+            ctx.strokeStyle = sharedOwner
+                ? GEOStarSystem.ownerColor(this.owner)
+                : (laneVisible ? '#546E7A' : '#1a2030');
+            ctx.lineWidth = sharedOwner ? 3 : 2;
             ctx.stroke();
         }
 

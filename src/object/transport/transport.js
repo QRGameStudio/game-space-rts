@@ -92,7 +92,7 @@ class GEOTransport extends GEO {
             if (!this.route.length) {
                 // Delivered — add materials to destination
                 if (nextSystem.type === 'producing') {
-                    nextSystem.materials += 1;
+                    nextSystem.materials = Math.min(nextSystem.materials + 1, 100);
                 }
                 this.die();
             }

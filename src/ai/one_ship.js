@@ -47,8 +47,9 @@ class AIOneShip {
         this.__spawnDestroyer();
 
         this.game.onStep = () => {
-            // Rebuild destroyer 15s after it's destroyed
-            if (this.__ship === null || this.__ship.isDead) {
+            const shipGone = this.__ship === null || this.__ship.isDead;
+
+            if (shipGone) {
                 this.__ship = null;
                 this.__rebuildTick++;
                 if (this.__rebuildTick >= fps * 15) {

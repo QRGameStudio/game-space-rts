@@ -69,14 +69,18 @@ class MapGenerator {
     __assignTypesAndOwnership(aiTeam) {
         const n = this.systems.length;
 
-        // Player owns first system, AI owns last
+        // Player home — producing (shipyard); resource node set by initPlayer()
         this.systems[0].owner = 'local';
         this.systems[0].type = 'producing';
+
+        // AI home + adjacent resource node
         this.systems[n - 1].owner = aiTeam;
         this.systems[n - 1].type = 'producing';
+        this.systems[n - 2].owner = aiTeam;
+        this.systems[n - 2].type = 'resource';
 
-        // Middle systems get random types
-        for (let i = 1; i < n - 1; i++) {
+        // Middle systems get random types (skip index 1 — reserved for player resource node)
+        for (let i = 2; i < n - 2; i++) {
             const roll = Math.random();
             if (roll < 0.25) {
                 this.systems[i].type = 'resource';

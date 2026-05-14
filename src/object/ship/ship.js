@@ -1,21 +1,21 @@
 /**
- * @typedef {'combat' | 'invasion' | 'siege'} GEOShipClass
+ * @typedef {'combat' | 'invasion' | 'siege' | 'builder'} GEOShipClass
  */
 
 class GEOShip extends GEOSelectable {
     static t = 'ship';
 
     /** Base HP per class */
-    static MAX_HP = { combat: 3, invasion: 1, siege: 2, fighter: 3, bomber: 2, builder: 3 };
+    static MAX_HP = { combat: 3, invasion: 1, siege: 2, builder: 1, fighter: 3, bomber: 2 };
 
     /** Attack cooldown in ms per veterancy level */
     static COOLDOWNS = { rookie: 2000, veteran: 1700, elite: 1400 };
 
     /** Speeds (units/step at 30fps → stored as step speed) */
-    static SPEEDS = { combat: 2.5, invasion: 1.5, siege: 1.0, fighter: 2.5, bomber: 1.0, builder: 1.5 };
+    static SPEEDS = { combat: 2.5, invasion: 1.5, siege: 1.0, builder: 1.2, fighter: 2.5, bomber: 1.0 };
 
     /** Materials cost */
-    static COSTS = { combat: 10, invasion: 15, siege: 20 };
+    static COSTS = { combat: 10, invasion: 15, siege: 20, builder: 30 };
 
     /**
      * @param game {GEG}
@@ -31,7 +31,6 @@ class GEOShip extends GEOSelectable {
         // Normalise legacy class names
         if (shipClass === 'fighter') shipClass = 'combat';
         if (shipClass === 'bomber') shipClass = 'siege';
-        if (shipClass === 'builder') shipClass = 'combat';
 
         this.shipClass = shipClass;
 
@@ -47,6 +46,10 @@ class GEOShip extends GEOSelectable {
             case 'siege':
                 this.w = 25; this.h = 50;
                 this.health = GEOShip.MAX_HP.siege;
+                break;
+            case 'builder':
+                this.w = 20; this.h = 20;
+                this.health = GEOShip.MAX_HP.builder;
                 break;
             default:
                 throw new Error(`Unknown ship class ${shipClass}`);
@@ -67,6 +70,10 @@ class GEOShip extends GEOSelectable {
         // Combat
         /** @type {number} timestamp of last shot */
         this.__lastFired = 0;
+        /** @type {number} timestamp when this ship last entered its current system */
+        this.__arrivalTime = 0;
+        /** @type {GEOStarSystem|null} System the ship departed from (used for lane ownership checks) */
+        this.__previousSystem = null;
         /** @type {number} XP gained from kills */
         this.xp = 0;
         /** @type {'rookie'|'veteran'|'elite'} */
@@ -75,9 +82,12 @@ class GEOShip extends GEOSelectable {
         this.__attritionTick = 0;
         /** Siege: ticks since last station hit */
         this.__siegeTick = 0;
+        /** @type {null|'search'|'search-defend'|'search-destroy'} Automation mode */
+        this.mode = null;
+        /** Tick counter for automation re-evaluation */
+        this.__modeTick = 0;
 
         this.conn.patchMethod(this.goToSystem);
-        this.conn.patchMethod(this.__fireLaser);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
@@ -105,6 +115,9 @@ class GEOShip extends GEOSelectable {
     }
 
     draw(ctx) {
+        // Hide enemy ships in systems outside the player's fog-of-war (with linger)
+        if (this.owner !== 'local' && this.system && !this.system.visible) return;
+
         const selected = this.constructor.selectedId === this.id;
         ctx.strokeStyle = selected ? 'orange' : this.color;
         ctx.lineWidth = selected ? 7 : 5;
@@ -125,6 +138,12 @@ class GEOShip extends GEOSelectable {
             ctx.lineTo(this.x + this.wh, this.y - this.hh);
             ctx.lineTo(this.x - this.wh, this.y - this.hh);
             ctx.closePath();
+        } else if (this.shipClass === 'builder') {
+            // Cross / plus symbol
+            ctx.moveTo(this.x - this.wh, this.y);
+            ctx.lineTo(this.x + this.wh, this.y);
+            ctx.moveTo(this.x, this.y - this.hh);
+            ctx.lineTo(this.x, this.y + this.hh);
         }
 
         ctx.stroke();
@@ -139,13 +158,50 @@ class GEOShip extends GEOSelectable {
                 ctx.fill();
             }
         }
+
+        // Automation mode indicator (small icon below ship)
+        if (this.mode) {
+            const MODE_ICONS = { 'search': '◎', 'search-defend': '◈', 'search-destroy': '✕' };
+            const MODE_COLORS = { 'search': '#00BCD4', 'search-defend': '#FFD600', 'search-destroy': '#FF1744' };
+            ctx.font = 'bold 11px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = MODE_COLORS[this.mode] ?? '#FFF';
+            ctx.fillText(MODE_ICONS[this.mode] ?? '?', this.x, this.y + this.hh + 12);
+        }
     }
 
     die() {
         if (this.system) {
             this.system.ships.delete(this);
         }
+        if (this.conn) this.conn.destroy();
         super.die();
+    }
+
+    explode() {
+        // Spawn expanding ring explosion at ship position
+        const x = this.x, y = this.y, color = this.color;
+        const boom = new GEO(this.game);
+        boom.x = x;
+        boom.y = y;
+        boom.w = boom.h = 400;  // large enough to always pass isVisible
+        let tick = 0;
+        boom.step = function () {
+            tick++;
+            if (tick >= 15) this.die();
+        };
+        boom.draw = function (ctx) {
+            const r = tick * 7;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, 1 - tick / 15);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        };
+        super.explode();  // logs + calls die()
     }
 
     /**
@@ -153,9 +209,13 @@ class GEOShip extends GEOSelectable {
      * @param {GEOShip} [killer] - who dealt the killing blow (for XP)
      */
     fireLaser(to, killer) {
+        if (this.health <= 0) return;   // zombie-proof: don't fire after death
+        if (to.health <= 0) return;     // don't shoot already-dead targets
         if (Date.now() - this.__lastFired < this.__attackCooldown) return;
         this.__lastFired = Date.now();
-        const newHp = to.health - 1;
+        const homeTurf = this.system?.owner === this.owner;
+        const damage = homeTurf ? 1.1 : 1.0;
+        const newHp = to.health - damage;
         this.__fireLaser(to, newHp);
         if (newHp <= 0 && killer) {
             killer.xp++;
@@ -171,6 +231,122 @@ class GEOShip extends GEOSelectable {
         new GEOLaser(this.game, this, to, this.color);
         if (to.hasOwnProperty('health')) {
             to.health = health;
+            to.conn?.syncHealth();
+        }
+    }
+
+    /** Builder ship: convert this system to a shipyard and consume the ship. */
+    buildShipyard() {
+        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
+        if (!this.conn.server.mainServer) return;
+        const hasStation = [...this.game.objectsOfTypes(GEOStation.t)].some(st => st.system === this.system);
+        if (hasStation) return;
+        this.system.type = 'producing';
+        new GEOStation(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner);
+        this.die();
+    }
+
+    /** Stop at the next system and clear any automation. */
+    stop() {
+        this.mode = null;
+        this.__modeTick = 0;
+        if (this.route.length > 1) this.route.splice(1);
+    }
+
+    /** Set an automation mode for this combat ship. */
+    setMode(mode) {
+        this.mode = mode;
+        this.__modeTick = 0;
+    }
+
+    /** Pick next destination based on current automation mode. */
+    __evaluateMode() {
+        const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+        const hasEnemy = (sys) => [...sys.ships].some(s => s.owner !== this.owner);
+        const tryGo = (sys) => { try { this.goToSystem(sys.label.text, true); } catch (_) {} };
+
+        if (this.mode === 'search') {
+            // Visit non-player systems that currently have no enemies
+            const candidates = allSystems.filter(s => s !== this.system
+                && s.owner !== this.owner && !hasEnemy(s));
+            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
+            return;
+        }
+
+        if (this.mode === 'search-defend') {
+            // Park one hop away from an enemy-occupied system
+            const candidates = allSystems.filter(s => s !== this.system
+                && !hasEnemy(s)
+                && s.connections.some(c => hasEnemy(c)));
+            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
+            return;
+        }
+
+        if (this.mode === 'search-destroy') {
+            // Rush the nearest visible enemy system within 3 hops
+            const target = this.__findEnemySystemWithinRange(3);
+            if (target) tryGo(target);
+            return;
+        }
+    }
+
+    /** BFS: find the closest system within `range` hops that is visible and has enemy ships. */
+    __findEnemySystemWithinRange(range) {
+        if (!this.system) return null;
+        const visited = new Set([this.system.id]);
+        let frontier = [this.system];
+        for (let d = 0; d < range; d++) {
+            const next = [];
+            for (const sys of frontier) {
+                for (const c of sys.connections) {
+                    if (visited.has(c.id)) continue;
+                    visited.add(c.id);
+                    if (GEOStarSystem.visibleIds.has(c.id)
+                        && [...c.ships].some(s => s.owner !== this.owner)) return c;
+                    next.push(c);
+                }
+            }
+            frontier = next;
+        }
+        return null;
+    }
+
+    /**
+     * When a ship arrives at a system, set its __lastFired:
+     * - Intruder (doesn't own the system): must wait a full cooldown before firing,
+     *   guaranteeing the defender fires at least once first.
+     * - Defender (owns the system): stagger 100ms per arrival order so multiple
+     *   friendly ships don't all fire at the same instant.
+     */
+    __setFiringOffset() {
+        if (!this.system) return;
+        const owner = this.system.owner;
+
+        if (owner !== null && this.owner !== owner) {
+            // Intruder in owned territory: wait full cooldown — defender fires first
+            this.__lastFired = Date.now();
+            return;
+        }
+
+        // Defender in owned territory, or any ship in neutral territory:
+        // stagger by arrival order (earliest-arrived fires first)
+        const candidates = owner === null
+            ? [...this.system.ships]
+            : [...this.system.ships].filter(s => s.owner === owner);
+        candidates.sort((a, b) => (a.__arrivalTime || 0) - (b.__arrivalTime || 0));
+        const rank = candidates.findIndex(s => s.id === this.id);
+        if (rank >= 0) {
+            this.__lastFired = Date.now() - this.__attackCooldown + rank * 100;
+        }
+
+        // When a defender arrives, re-apply the full cooldown to any intruders
+        // whose penalty has already expired (i.e. they arrived before the defender settled)
+        if (owner !== null) {
+            for (const ship of this.system.ships) {
+                if (ship.owner !== owner && Date.now() - ship.__lastFired >= this.__attackCooldown) {
+                    ship.__lastFired = Date.now();
+                }
+            }
         }
     }
 
@@ -186,20 +362,14 @@ class GEOShip extends GEOSelectable {
                 ? [...this.system.ships].filter(s => s.owner !== this.owner)
                 : [];
 
-            if (this.conn.server.mainServer && this.owner === 'local' && enemiesInSystem.length) {
-                // Priority 1: enemy combat ships; Priority 2: siege/invasion; Priority 3: shield
+            if (this.conn.server.mainServer && enemiesInSystem.length) {
+                // Priority 1: enemy combat ships; Priority 2: siege/invasion
                 const target = enemiesInSystem.find(s => s.shipClass === 'combat')
                     ?? enemiesInSystem[0];
                 this.fireLaser(target, this);
-            } else if (this.conn.server.mainServer && this.owner !== 'local') {
-                // AI combat ships also fight
-                if (enemiesInSystem.length) {
-                    const target = enemiesInSystem.find(s => s.shipClass === 'combat') ?? enemiesInSystem[0];
-                    this.fireLaser(target, this);
-                }
             }
 
-            // Target enemy system's shield (combat ships hit shields too)
+            // Target enemy system's shield
             if (this.conn.server.mainServer && this.system && this.system.owner !== this.owner
                 && this.system.shieldHp > 0 && !enemiesInSystem.length) {
                 if (Date.now() - this.__lastFired >= this.__attackCooldown) {
@@ -258,6 +428,24 @@ class GEOShip extends GEOSelectable {
             return;
         }
 
+        // --- Automation modes (combat ships only, server-authoritative) ---
+        if (this.mode && this.shipClass === 'combat' && this.system
+            && this.route.length === 0 && this.conn.server.mainServer) {
+            this.__modeTick++;
+            if (this.__modeTick >= fps * 3) {
+                this.__modeTick = 0;
+                this.__evaluateMode();
+            }
+        }
+
+        // S&DEFEND: if already parked adjacent to an enemy, cancel any further travel
+        if (this.mode === 'search-defend' && this.system && this.route.length > 0) {
+            const hasEnemy = (sys) => [...sys.ships].some(s => s.owner !== this.owner);
+            if (this.system.connections.some(c => hasEnemy(c))) {
+                this.route.length = 0;
+            }
+        }
+
         // --- Movement ---
         const enemyShipsInSystem = this.system
             ? [...this.system.ships].filter(x => x.owner !== this.owner)
@@ -270,6 +458,7 @@ class GEOShip extends GEOSelectable {
                 if (enemyShipsInSystem.filter(s => s.shipClass === 'combat').length) {
                     canLeave = false;
                 } else if (!this.__isInTransitTo(this.system)) {
+                    this.__previousSystem = this.system;
                     this.system.ships.delete(this);
                     this.system = null;
                 }
@@ -279,13 +468,18 @@ class GEOShip extends GEOSelectable {
                 const nextSystem = this.route[0];
                 if (this.__isInTransitTo(nextSystem)) {
                     this.d = this.angleTo(nextSystem);
-                    this.s = GEOShip.SPEEDS[this.shipClass] ?? 2;
+                    const base = GEOShip.SPEEDS[this.shipClass] ?? 2;
+                    const friendlyLane = this.__previousSystem?.owner === this.owner
+                        && nextSystem.owner === this.owner;
+                    this.s = friendlyLane ? base * 1.3 : base;
                 } else {
                     if (this.system) {
                         this.system.ships.delete(this);
                     }
                     this.system = nextSystem;
                     this.system.ships.add(this);
+                    this.__arrivalTime = Date.now();
+                    this.__setFiringOffset();
                     this.s = 0;
                     this.route.shift();
                 }
@@ -323,6 +517,7 @@ class GEOShip extends GEOSelectable {
      * @param {boolean} replace
      */
     goToSystem(systemName, replace = false) {
+        if (!replace) this.mode = null;
         const systemTarget = this.__systemByName(systemName);
         const searched = new Set();
         const route = [];

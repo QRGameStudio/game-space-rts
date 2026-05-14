@@ -38,6 +38,28 @@ const CONTROLS_RENDERED = new GRenderer(
 
 const AI_TEAM = 'ai_player';
 
+window.deselectAll = function() {
+    GEOSelectable.deselectAll();
+    CONTROLS_RENDERED.variables.selected = null;
+    CONTROLS_RENDERED.render();
+};
+
+/**
+ * Initialise a player: create a starbase, seed starting materials, spawn one destroyer.
+ * The resource system is forced to type 'resource' so income always flows.
+ * @param {string} owner
+ * @param {GEOStarSystem} system - producing / shipyard system
+ * @param {GEOStarSystem} resourceSystem - adjacent system that will generate materials
+ */
+function initPlayer(owner, system, resourceSystem) {
+    resourceSystem.owner = owner;
+    resourceSystem.type = 'resource';
+    const color = GEOStarSystem.ownerColor(owner);
+    new GEOStation(GAME, {server: SERVER}, color, system.label.text, owner);
+    system.materials = 20;
+    new GEOShip(GAME, {server: SERVER}, color, system.label.text, owner, 'combat');
+}
+
 async function start() {
     const canvas = $('#game-canvas');
     GAME = new GEG(canvas);
@@ -50,7 +72,7 @@ async function start() {
 
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
-        MAP.generateMap(6, AI_TEAM);
+        MAP.generateMap(60, AI_TEAM);
         SERVER.onEventListener(() => {
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
         }, "map:fetch:request");
@@ -59,10 +81,8 @@ async function start() {
 
     GAME.cameraCenter = {x: MAP.systems[0].x, y: MAP.systems[0].y};
 
-    const playerSystem = MAP.systems[0];
-    new GEOShip(GAME, {server: SERVER}, '#00E5FF', playerSystem.label.text, "local", "combat");
-    new GEOStation(GAME, {server: SERVER}, '#00E5FF', playerSystem.label.text, "local");
-    playerSystem.materials = 20;
+    initPlayer('local', MAP.systems[0], MAP.systems[1]);
+    GEOStarSystem.computeVisibility(GAME);
 
     GAME.onKeyDown = (key) => {
         switch (key) {
@@ -106,6 +126,12 @@ async function start() {
     GAME.onScroll = (start, move) => {
         const newZoom = GAME.zoom - move.y / 1000;
         if (newZoom < 0.3 || newZoom > 3 || GAME.zoom === newZoom) return;
+        // Zoom toward mouse position: keep world point under cursor fixed
+        const factor = 1 / newZoom - 1 / GAME.zoom;
+        GAME.cameraOffset = {
+            x: GAME.cameraOffset.x + start.x * factor,
+            y: GAME.cameraOffset.y + start.y * factor
+        };
         GAME.zoom = newZoom;
     };
 
@@ -117,6 +143,7 @@ async function start() {
         __renderThrottle++;
         if (__renderThrottle >= 15) {
             __renderThrottle = 0;
+            GEOStarSystem.computeVisibility(GAME);
             CONTROLS_RENDERED.variables.selected = SELECTED_OBJECT;
             CONTROLS_RENDERED.render();
         }

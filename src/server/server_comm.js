@@ -83,6 +83,9 @@ class ServerConnection {
 }
 
 class ServerCommAsset {
+    /** Global registry: server_id → ServerCommAsset. Shared across all connections. */
+    static globalAssetMap = new Map();
+
     /**
      * @param server {{server: ServerConnection, local?: boolean, id?: string}}
      * @param parent {Object}
@@ -122,6 +125,13 @@ class ServerCommAsset {
 
         console.assert(!this.server.assetMap.has(this.server_id), 'Server ID already exists');
         this.server.assetMap.set(this.server_id, this);
+        ServerCommAsset.globalAssetMap.set(this.server_id, this);
+    }
+
+    /** Remove this asset from all registries (call when the parent object is destroyed). */
+    destroy() {
+        this.server.assetMap.delete(this.server_id);
+        ServerCommAsset.globalAssetMap.delete(this.server_id);
     }
 
     syncPosition() {
@@ -135,7 +145,17 @@ class ServerCommAsset {
             y: this.parent.y,
             s: this.parent.s,
             d: this.parent.d,
+            health: this.parent.health,
             data: JSON.stringify(this.parent.data)
+        }).then();
+    }
+
+    /** Immediately broadcast current health to all clients. Call after any authoritative health change. */
+    syncHealth() {
+        if (!this.server.mainServer) return;
+        this.server.sendEvent(`${this.server_id}/sync::periodic`, {
+            id: this.server_id,
+            health: this.parent.health
         }).then();
     }
 
@@ -146,8 +166,8 @@ class ServerCommAsset {
             data = data.map(arg => {
                 if (typeof arg === 'string' && arg.startsWith('GEO::')) {
                     const assetServerId = arg.split('::')[1];
-                    const asset = this.server.assetMap.get(assetServerId);
-                    console.assert(typeof asset !== 'undefined', `Asset ${assetServerId} not found in local server ${this.server.id} (${this.server.assetMap.size}:${[...this.server.assetMap.keys()]})`);
+                    const asset = ServerCommAsset.globalAssetMap.get(assetServerId);
+                    console.assert(typeof asset !== 'undefined', `Asset ${assetServerId} not found in global map`);
                     return asset.parent;
                 }
                 return arg;
