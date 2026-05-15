@@ -41,7 +41,11 @@ let IN_COMBAT_TIMEOUT = null;
 const CONTROLS_RENDERED = new GRenderer(
     document.querySelector('#controls-c'),
     { 'selected': null }
-)
+);
+CONTROLS_RENDERED.functions.getStationButtonsClass = (s) => (s && s.t === 'station' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
+CONTROLS_RENDERED.functions.getShipButtonsClass = (s) => (s && s.t === 'ship' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
+CONTROLS_RENDERED.functions.getBuilderCommandClass = (s) => (s && s.shipClass === 'builder') ? '' : 'r-hidden';
+CONTROLS_RENDERED.functions.getCombatCommandClass = (s) => (s && s.shipClass === 'combat') ? '' : 'r-hidden';
 
 const AI_TEAM = 'ai_player';
 const AI_TEAM_SEP = 'separatistic_ai';
