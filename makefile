@@ -4,7 +4,7 @@ clean:
 		rm -rf dist/
 
 compile:
-		node ../util-games-builder/build-game.js game.html --no-qr --no-minify
+		node ../util-games-builder/build-game.js game.html --no-qr
 
 autobuild:
 		node ../util-games-builder/run-from-source.js game.html

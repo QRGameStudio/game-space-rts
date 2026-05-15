@@ -46,34 +46,34 @@ body, #game-layer {
     font-size: 13px;
     min-height: 2.5em;
     box-sizing: border-box;
+}
 
-    .info-block {
-        flex: 1;
-    }
+#controls-c .info-block {
+    flex: 1;
+}
 
-    .buttons {
-        display: flex;
-        gap: 0.4em;
+#controls-c .buttons {
+    display: flex;
+    gap: 0.4em;
+}
 
-        button {
-            pointer-events: all;
-            background: #1a2236;
-            color: white;
-            border: 1px solid #546E7A;
-            padding: 0.3em 0.6em;
-            cursor: pointer;
-            font-family: monospace;
-            font-size: 12px;
-        }
+#controls-c .buttons button {
+    pointer-events: all;
+    background: #1a2236;
+    color: white;
+    border: 1px solid #546E7A;
+    padding: 0.3em 0.6em;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 12px;
+}
 
-        button:hover {
-            background: #2a3a56;
-            border-color: #00E5FF;
-        }
+#controls-c .buttons button:hover {
+    background: #2a3a56;
+    border-color: #00E5FF;
+}
 
-        button:active {
-            background: #00E5FF;
-            color: #0B0F19;
-        }
-    }
+#controls-c .buttons button:active {
+    background: #00E5FF;
+    color: #0B0F19;
 }
