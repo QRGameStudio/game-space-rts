@@ -14,7 +14,7 @@ class GEORepairStation extends GEOSelectable {
         this.w = 40;
         this.h = 40;
         this.t = this.constructor.t;
-        this.health = 10;
+        this.health = 5;
         this.clickable = true;
 
         this.color = color;

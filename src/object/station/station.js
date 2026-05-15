@@ -14,7 +14,7 @@ class GEOStation extends GEOSelectable {
         this.w = 40;
         this.h = 40;
         this.t = this.constructor.t;
-        this.health = 30;
+        this.health = 8;
         this.clickable = true;
 
         this.color = color;
