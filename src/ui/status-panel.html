@@ -16,6 +16,7 @@
         HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="f.getStructureMaxHp(v.selected)"></b>&nbsp;
         Mat:<b r-var="v.selected.system ? Math.floor(v.selected.system.materials) : 0"></b>&nbsp;
         Fleet:<b r-var="f.getFleetCount(v.selected)"></b>/<b r-var="f.getFleetCap(v.selected)"></b>&nbsp;
+        Yards:<b r-var="f.getShipyardCount(v.selected)"></b>/<b r-var="f.getShipyardCap(v.selected)"></b>&nbsp;
         <span r-var="v.selected.system && v.selected.system.buildQueue.length ? 'Queue: ' + v.selected.system.buildQueue.map(function(q){return q.shipClass[0].toUpperCase()+'('+Math.ceil(q.ticksLeft/30)+'s)'}).join(' ') : 'Queue: empty'"></span>
         <span r-if="v.selected.system && v.selected.system.shieldHp > 0">&nbsp;Shield:<span r-var="v.selected.system && v.selected.system.shieldHp"></span>/<span r-var="v.selected.system && v.selected.system.shieldMaxHp"></span></span>
     </div>

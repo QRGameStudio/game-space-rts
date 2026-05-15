@@ -40,7 +40,7 @@ let IN_COMBAT_TIMEOUT = null;
 
 const CONTROLS_RENDERED = new GRenderer(
     document.querySelector('#controls-c'),
-    { 'selected': null, 'pendingDismantle': false, 'pendingBuilderAction': null, 'pendingBuilderLabel': '' }
+    { 'selected': null, 'pendingDismantle': false, 'pendingBuilderAction': null, 'pendingBuilderLabel': '', 'pendingBuilderTarget': null }
 );
 CONTROLS_RENDERED.functions.getStationButtonsClass = (s) => (s && s.t === 'station' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
 CONTROLS_RENDERED.functions.getShipButtonsClass = (s) => (s && s.t === 'ship' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
@@ -64,6 +64,15 @@ CONTROLS_RENDERED.functions.getFleetCap = (s) => {
     const stations = [...GAME.objectsOfTypes(GEOStation.t)].filter(x => x.owner === s.owner).length;
     return Math.max(3, systems * 1 + stations * 2);
 };
+CONTROLS_RENDERED.functions.getShipyardCap = (s) => {
+    if (!s?.owner || !GAME) return 0;
+    const systems = [...GAME.objectsOfTypes(GEOStarSystem.t)].filter(x => x.owner === s.owner).length;
+    return Math.ceil(systems / 5);
+};
+CONTROLS_RENDERED.functions.getShipyardCount = (s) => {
+    if (!s?.owner || !GAME) return 0;
+    return [...GAME.objectsOfTypes(GEOStation.t)].filter(x => x.owner === s.owner).length;
+};
 
 const AI_TEAM = 'ai_player';
 const AI_TEAM_SEP = 'separatistic_ai';
@@ -77,6 +86,7 @@ window.deselectAll = function () {
     CONTROLS_RENDERED.variables.pendingDismantle = false;
     CONTROLS_RENDERED.variables.pendingBuilderAction = null;
     CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+    CONTROLS_RENDERED.variables.pendingBuilderTarget = null;
     CONTROLS_RENDERED.render();
 };
 
@@ -99,22 +109,26 @@ window.cancelDismantle = function () {
 window.requestBuilderBuild = function (action, label) {
     CONTROLS_RENDERED.variables.pendingBuilderAction = action;
     CONTROLS_RENDERED.variables.pendingBuilderLabel = label;
+    CONTROLS_RENDERED.variables.pendingBuilderTarget = SELECTED_OBJECT;
     CONTROLS_RENDERED.render();
 };
 
 window.confirmBuilderBuild = function () {
     const action = CONTROLS_RENDERED.variables.pendingBuilderAction;
-    if (SELECTED_OBJECT && action && typeof SELECTED_OBJECT[action] === 'function') {
-        SELECTED_OBJECT[action]();
+    const target = CONTROLS_RENDERED.variables.pendingBuilderTarget || SELECTED_OBJECT;
+    if (target && action && typeof target[action] === 'function') {
+        target[action]();
     }
     CONTROLS_RENDERED.variables.pendingBuilderAction = null;
     CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+    CONTROLS_RENDERED.variables.pendingBuilderTarget = null;
     deselectAll();
 };
 
 window.cancelBuilderBuild = function () {
     CONTROLS_RENDERED.variables.pendingBuilderAction = null;
     CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+    CONTROLS_RENDERED.variables.pendingBuilderTarget = null;
     CONTROLS_RENDERED.render();
 };
 
@@ -264,6 +278,7 @@ async function start() {
                 CONTROLS_RENDERED.variables.pendingDismantle = false;
                 CONTROLS_RENDERED.variables.pendingBuilderAction = null;
                 CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+                CONTROLS_RENDERED.variables.pendingBuilderTarget = null;
                 __lastSelectedId = curId;
             }
             CONTROLS_RENDERED.variables.selected = SELECTED_OBJECT;

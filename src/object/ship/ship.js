@@ -253,6 +253,11 @@ class GEOShip extends GEOSelectable {
         if (!this.conn.server.mainServer) return;
         const hasStation = [...this.game.objectsOfTypes(GEOStation.t)].some(st => st.system === this.system);
         if (hasStation) return;
+        // Shipyard capacity: Math.ceil(owned_systems / 5)
+        const ownedSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)].filter(s => s.owner === this.owner).length;
+        const ownedStations = [...this.game.objectsOfTypes(GEOStation.t)].filter(s => s.owner === this.owner).length;
+        const shipyardCap = Math.ceil(ownedSystems / 5);
+        if (ownedStations >= shipyardCap) return; // at shipyard cap
         this.system.type = 'producing';
         new GEOStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
         this.die();
@@ -309,6 +314,12 @@ class GEOShip extends GEOSelectable {
     /** How long (ms) before a visited system loses its visit penalty. */
     static VISIT_COOLDOWN = 90000;
 
+    /** Global per-owner+mode visit memory. Key = 'owner:mode:systemId' → timestamp. */
+    static __globalVisitedAt = new Map();
+
+    /** Penalty multiplier applied to scores when a system was globally visited by same owner+mode. */
+    static GLOBAL_VISIT_PENALTY = 0.7;
+
     /** BFS hop distances from current system to all reachable systems. */
     __bfsDistances() {
         const dist = new Map();
@@ -344,8 +355,15 @@ class GEOShip extends GEOSelectable {
     __bestCandidate(candidates, scoreFn, skip = 0) {
         if (!candidates.length) return null;
         const now = Date.now();
+        const modeKey = this.owner + ':' + this.mode + ':';
         const scored = candidates
-            .map(s => ({ s, score: scoreFn(s), t: this.__visitedAt.get(s.id) ?? 0 }))
+            .map(s => {
+                let score = scoreFn(s);
+                // Apply global per-mode penalty so ships of the same automation don't all pick the same path
+                const globalT = GEOShip.__globalVisitedAt.get(modeKey + s.id) ?? 0;
+                if (now - globalT < GEOShip.VISIT_COOLDOWN) score *= GEOShip.GLOBAL_VISIT_PENALTY;
+                return { s, score, t: this.__visitedAt.get(s.id) ?? 0 };
+            })
             .filter(x => x.score > 0)
             .sort((a, b) => b.score - a.score);
         if (!scored.length) return null;
@@ -365,8 +383,15 @@ class GEOShip extends GEOSelectable {
     __bestInvasionCandidate(candidates, scoreFn, skip = 0) {
         if (!candidates.length) return null;
         const now = Date.now();
+        const modeKey = this.owner + ':' + this.mode + ':';
         const fresh = candidates
-            .map(s => ({ s, score: scoreFn(s) }))
+            .map(s => {
+                let score = scoreFn(s);
+                // Apply global per-mode penalty
+                const globalT = GEOShip.__globalVisitedAt.get(modeKey + s.id) ?? 0;
+                if (now - globalT < GEOShip.VISIT_COOLDOWN) score *= GEOShip.GLOBAL_VISIT_PENALTY;
+                return { s, score };
+            })
             .filter(x => x.score > 0 && now - (this.__visitedAt.get(x.s.id) ?? 0) >= GEOShip.VISIT_COOLDOWN)
             .sort((a, b) => b.score - a.score);
         if (!fresh.length) return null;
@@ -716,6 +741,10 @@ class GEOShip extends GEOSelectable {
                 this.system.ships.add(this);
                 this.__arrivalTime = Date.now();
                 this.__visitedAt.set(this.system.id, Date.now());
+                // Record visit globally for per-mode path diversity
+                if (this.mode) {
+                    GEOShip.__globalVisitedAt.set(this.owner + ':' + this.mode + ':' + this.system.id, Date.now());
+                }
                 this.__setFiringOffset();
                 this.s = 0;
                 this.route.shift();
