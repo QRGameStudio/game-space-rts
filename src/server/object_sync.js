@@ -14,12 +14,20 @@ class ServerObjectSync {
             let obj;
             switch (objectType) {
                 case GEOShip.t:
-                    // noinspection JSCheckFunctionSignatures
+                    // args: [systemName, owner, shipClass]
                     obj = new GEOShip(game, {server, id: data.id, local: false}, ...data.args);
                     break;
                 case GEOStation.t:
-                    // noinspection JSCheckFunctionSignatures
+                    // args: [systemName, owner]
                     obj = new GEOStation(game, {server, id: data.id, local: false}, ...data.args);
+                    break;
+                case GEORepairStation.t:
+                    // args: [systemName, owner]
+                    obj = new GEORepairStation(game, {server, id: data.id, local: false}, ...data.args);
+                    break;
+                case GEOJumpInhibitor.t:
+                    // args: [systemName, owner]
+                    obj = new GEOJumpInhibitor(game, {server, id: data.id, local: false}, ...data.args);
                     break;
                 default:
                     console.warn(`[SERVER] Unknown object type: ${objectType}`);

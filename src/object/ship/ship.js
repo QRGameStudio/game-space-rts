@@ -20,12 +20,11 @@ class GEOShip extends GEOSelectable {
     /**
      * @param game {GEG}
      * @param server {GEOServerConnection}
-     * @param color {string}
      * @param systemName {string}
      * @param owner {string}
      * @param shipClass {GEOShipClass}
      */
-    constructor(game, server, color, systemName, owner, shipClass) {
+    constructor(game, server, systemName, owner, shipClass) {
         super(game, server, owner);
 
         // Normalise legacy class names
@@ -52,7 +51,6 @@ class GEOShip extends GEOSelectable {
 
         this.t = this.constructor.t;
         this.clickable = true;
-        this.color = color;
 
         /** @type {GEOStarSystem | null} */
         this.system = this.__systemByName(systemName);
@@ -75,10 +73,12 @@ class GEOShip extends GEOSelectable {
         this.veterancy = 'rookie';
         /** Attrition tick counter */
         this.__attritionTick = 0;
-        /** @type {null|'search'|'search-defend'|'search-destroy'} Automation mode */
+        /** @type {null|'search'|'search-defend'|'search-destroy'|'search-resources'|'fill-borders'} Automation mode */
         this.mode = null;
         /** Tick counter for automation re-evaluation */
         this.__modeTick = 0;
+        /** @type {Map<string, number>} systemId → timestamp of last visit, for mode de-prioritisation */
+        this.__visitedAt = new Map();
 
         this.conn.patchMethod(this.goToSystem);
         this.conn.patchMethod(this.setMode);
@@ -86,9 +86,13 @@ class GEOShip extends GEOSelectable {
         this.conn.patchMethod(this.buildShipyard);
         this.conn.patchMethod(this.buildRepairStation);
         this.conn.patchMethod(this.buildShield);
+        this.conn.patchMethod(this.buildJumpInhibitor);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
+
+    /** Color is always derived live from the owner's registered colour. */
+    get color() { return GEOStarSystem.ownerColor(this.owner); }
 
     onclick(x, y, clickedObject) {
         if (this.owner !== 'local') {
@@ -162,8 +166,8 @@ class GEOShip extends GEOSelectable {
 
         // Automation mode indicator (small icon below ship)
         if (this.mode) {
-            const MODE_ICONS = { 'search': '◎', 'search-defend': '◈', 'search-destroy': '✕' };
-            const MODE_COLORS = { 'search': '#00BCD4', 'search-defend': '#FFD600', 'search-destroy': '#FF1744' };
+            const MODE_ICONS = { 'search': '◎', 'search-defend': '◈', 'search-destroy': '✕', 'search-resources': '★', 'fill-borders': '⬡' };
+            const MODE_COLORS = { 'search': '#00BCD4', 'search-defend': '#FFD600', 'search-destroy': '#FF1744', 'search-resources': '#76FF03', 'fill-borders': '#E040FB' };
             ctx.font = 'bold 11px monospace';
             ctx.textAlign = 'center';
             ctx.fillStyle = MODE_COLORS[this.mode] ?? '#FFF';
@@ -180,31 +184,32 @@ class GEOShip extends GEOSelectable {
     }
 
     explode() {
-        // Spawn expanding ring explosion at ship position
-        const x = this.x, y = this.y, color = this.color;
-        const boom = new GEO(this.game);
-        boom.x = x;
-        boom.y = y;
-        boom.w = boom.h = 400;  // large enough to always pass isVisible
-        let tick = 0;
-        boom.step = function () {
-            tick++;
-            if (tick >= 15) this.die();
-        };
-        boom.draw = function (ctx) {
-            const r = tick * 7;
-            ctx.save();
-            ctx.globalAlpha = Math.max(0, 1 - tick / 15);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-        };
-        if (this.isVisible) {
+        // Only show explosion visual and sound when in fog-of-war visible area
+        const shipVisible = this.system?.visible ?? this.__previousSystem?.visible ?? false;
+        if (shipVisible) {
+            const x = this.x, y = this.y, color = this.color;
+            const boom = new GEO(this.game);
+            boom.x = x;
+            boom.y = y;
+            boom.w = boom.h = 400;  // large enough to always pass isVisible
+            let tick = 0;
+            boom.step = function () {
+                tick++;
+                if (tick >= 15) this.die();
+            };
+            boom.draw = function (ctx) {
+                const r = tick * 7;
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, 1 - tick / 15);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            };
+            IN_COMBAT_TIMEOUT = Date.now() + 5000;
             (async () => {
-                IN_COMBAT_TIMEOUT = Date.now() + 5000;
                 (await MUSIC.get("boom")).play(0, 40);
             })();
         }
@@ -249,7 +254,7 @@ class GEOShip extends GEOSelectable {
         const hasStation = [...this.game.objectsOfTypes(GEOStation.t)].some(st => st.system === this.system);
         if (hasStation) return;
         this.system.type = 'producing';
-        new GEOStation(this.game, { server: this.conn.server }, this.color, this.system.label.text, this.owner);
+        new GEOStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
         this.die();
     }
 
@@ -260,7 +265,7 @@ class GEOShip extends GEOSelectable {
         const hasStation = [...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system);
         if (hasStation) return;
         this.system.type = 'repair';
-        new GEORepairStation(this.game, { server: this.conn.server }, this.color, this.system.label.text, this.owner);
+        new GEORepairStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
         this.die();
     }
 
@@ -270,6 +275,20 @@ class GEOShip extends GEOSelectable {
         if (!this.conn.server.mainServer) return;
         if (this.system.shieldHp > 0) return; // Already has a shield
         this.system.shieldHp = this.system.shieldMaxHp;
+        this.die();
+    }
+
+    /** Builder ship: build a jump inhibitor at this system and consume the ship. */
+    buildJumpInhibitor() {
+        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
+        if (!this.conn.server.mainServer) return;
+        const hasInhibitor = [...this.game.objectsOfTypes(GEOJumpInhibitor.t)].some(j => j.system === this.system);
+        if (hasInhibitor) return;
+        const hasStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
+            .some(st => st.system === this.system);
+        if (hasStation) return; // Already has a station or repair station
+        this.system.type = 'inhibitor';
+        new GEOJumpInhibitor(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
         this.die();
     }
 
@@ -287,59 +306,206 @@ class GEOShip extends GEOSelectable {
         this.__evaluateMode();
     }
 
-    /** Pick next destination based on current automation mode. */
-    __evaluateMode() {
-        const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
-        const hasEnemy = (sys) => (sys.owner !== null && sys.owner !== this.owner) || [...sys.ships].some(s => s.owner !== this.owner);
-        const tryGo = (sys) => { try { this.goToSystem(sys.label.text, true); } catch (_) { } };
+    /** How long (ms) before a visited system loses its visit penalty. */
+    static VISIT_COOLDOWN = 90000;
 
-        let actionTaken = false;
-
-        if (this.mode === 'search-defend') {
-            // Park one hop away from an enemy-occupied system
-            const candidates = allSystems.filter(s => s !== this.system
-                && !hasEnemy(s)
-                && s.connections.some(c => hasEnemy(c)));
-            if (candidates.length) {
-                tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
-                actionTaken = true;
-            }
-        } else if (this.mode === 'search-destroy') {
-            // Rush the nearest visible enemy system within 3 hops
-            const target = this.__findEnemySystemWithinRange(3);
-            if (target) {
-                tryGo(target);
-                actionTaken = true;
-            }
-        }
-
-        if (this.mode === 'search' || (!actionTaken && (this.mode === 'search-defend' || this.mode === 'search-destroy'))) {
-            // Visit non-player systems that currently have no enemies
-            const candidates = allSystems.filter(s => s !== this.system
-                && s.owner !== this.owner && !hasEnemy(s));
-            if (candidates.length) tryGo(candidates[Math.floor(Math.random() * candidates.length)]);
-        }
-    }
-
-    /** BFS: find the closest system within `range` hops that is visible and has enemy ships. */
-    __findEnemySystemWithinRange(range) {
-        if (!this.system) return null;
+    /** BFS hop distances from current system to all reachable systems. */
+    __bfsDistances() {
+        const dist = new Map();
+        if (!this.system) return dist;
         const visited = new Set([this.system.id]);
         let frontier = [this.system];
-        for (let d = 0; d < range; d++) {
+        let d = 0;
+        while (frontier.length > 0) {
             const next = [];
             for (const sys of frontier) {
                 for (const c of sys.connections) {
                     if (visited.has(c.id)) continue;
                     visited.add(c.id);
-                    if (GEOStarSystem.visibleIds.has(c.id)
-                        && [...c.ships].some(s => s.owner !== this.owner)) return c;
+                    dist.set(c.id, d + 1);
                     next.push(c);
                 }
             }
             frontier = next;
+            d++;
         }
-        return null;
+        return dist;
+    }
+
+    /**
+     * Deterministic best-pick: highest score wins among fresh candidates
+     * (unvisited or cooldown-expired). Falls back to highest score among all
+     * candidates if everything is in cooldown — combat ships never wait.
+     * @param {GEOStarSystem[]} candidates
+     * @param {(sys: GEOStarSystem) => number} scoreFn  — higher = better, ≤0 = invalid
+     * @param {number} skip  — skip the top N picks (used when multiple peers share a system)
+     * @returns {GEOStarSystem|null}
+     */
+    __bestCandidate(candidates, scoreFn, skip = 0) {
+        if (!candidates.length) return null;
+        const now = Date.now();
+        const scored = candidates
+            .map(s => ({ s, score: scoreFn(s), t: this.__visitedAt.get(s.id) ?? 0 }))
+            .filter(x => x.score > 0)
+            .sort((a, b) => b.score - a.score);
+        if (!scored.length) return null;
+        const fresh = scored.filter(x => now - x.t >= GEOShip.VISIT_COOLDOWN);
+        const pool = fresh.length ? fresh : scored;
+        return pool[Math.min(skip, pool.length - 1)].s;
+    }
+
+    /**
+     * Like __bestCandidate but returns null when all candidates are in cooldown,
+     * so invasion ships wait rather than oscillate between recently-visited nodes.
+     * @param {GEOStarSystem[]} candidates
+     * @param {(sys: GEOStarSystem) => number} scoreFn
+     * @param {number} skip
+     * @returns {GEOStarSystem|null}
+     */
+    __bestInvasionCandidate(candidates, scoreFn, skip = 0) {
+        if (!candidates.length) return null;
+        const now = Date.now();
+        const fresh = candidates
+            .map(s => ({ s, score: scoreFn(s) }))
+            .filter(x => x.score > 0 && now - (this.__visitedAt.get(x.s.id) ?? 0) >= GEOShip.VISIT_COOLDOWN)
+            .sort((a, b) => b.score - a.score);
+        if (!fresh.length) return null;
+        return fresh[Math.min(skip, fresh.length - 1)].s;
+    }
+
+    /**
+     * Among ships at the same system with the same mode, return this ship's rank (0-based)
+     * sorted by ID. Used to spread multiple peers across different target candidates.
+     */
+    __peerRank() {
+        return [...this.game.objectsOfTypes(GEOShip.t)]
+            .filter(s => s.system === this.system && s.mode === this.mode && !s.isDead)
+            .sort((a, b) => (a.id < b.id ? -1 : 1))
+            .findIndex(s => s.id === this.id);
+    }
+
+    /** Pick next destination based on current automation mode. */
+    __evaluateMode() {
+        const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+        const isEnemy = (s) => (s.owner !== null && s.owner !== this.owner) || [...s.ships].some(sh => sh.owner !== this.owner);
+        // Only commit to the next single hop — ship re-evaluates on every arrival.
+        const tryGo = (sys) => {
+            try { this.goToSystem(sys.label.text, true); } catch (_) { return; }
+            if (this.route.length > 2) this.route.length = 2;
+        };
+        const dist = this.__bfsDistances();
+        const hops = (s) => dist.get(s.id) ?? 999;
+        const rank = this.__peerRank();
+
+        if (this.mode === 'search-destroy') {
+            const candidates = allSystems.filter(s => s !== this.system && s.owner !== this.owner);
+            const target = this.__bestCandidate(candidates, s => {
+                const enemyShips = [...s.ships].filter(sh => sh.owner !== this.owner).length;
+                const base = enemyShips * 50 + (s.owner !== null ? 10 : 1);
+                return base / (1 + hops(s));
+            }, rank);
+            if (target) tryGo(target);
+            return;
+        }
+
+        if (this.mode === 'search-defend') {
+            const candidates = allSystems.filter(s => s !== this.system && !isEnemy(s));
+            const target = this.__bestCandidate(candidates, s => {
+                const adjEnemies = s.connections.filter(c => isEnemy(c)).length;
+                const base = adjEnemies > 0 ? 10 + adjEnemies * 2 : 1;
+                return base / (1 + hops(s));
+            }, rank);
+            if (target) tryGo(target);
+            return;
+        }
+
+        if (this.mode === 'search') {
+            const candidates = allSystems.filter(s => s !== this.system && !isEnemy(s) && s.owner !== this.owner);
+            const target = this.__bestCandidate(candidates, s => 1 / (1 + hops(s)), rank);
+            if (target) tryGo(target);
+        }
+    }
+
+    /** Pick next destination for invasion automation modes. */
+    __evaluateInvasionMode() {
+        const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+        // Only commit to the next single hop — ship re-evaluates on every arrival.
+        const tryGo = (sys) => {
+            try { this.goToSystem(sys.label.text, true); } catch (_) { return; }
+            if (this.route.length > 2) this.route.length = 2;
+        };
+        const tryGoSafe = (sys) => {
+            this.__goToSystemAvoidEnemy(sys.label.text);
+            if (this.route.length > 2) this.route.length = 2;
+        };
+        const dist = this.__bfsDistances();
+        const hops = (s) => dist.get(s.id) ?? 999;
+        const rank = this.__peerRank();
+
+        if (this.mode === 'search-resources') {
+            const candidates = allSystems.filter(s => s !== this.system && s.owner === null);
+            const target = this.__bestInvasionCandidate(candidates, s => {
+                const base = s.type === 'resource' ? 10 : 1;
+                return base / (1 + hops(s));
+            }, rank);
+            if (target) tryGoSafe(target);
+            return;
+        }
+
+        if (this.mode === 'fill-borders') {
+            const ownedSystems = new Set(allSystems.filter(s => s.owner === this.owner));
+            const candidates = allSystems.filter(s =>
+                s !== this.system && s.owner === null && s.connections.some(c => ownedSystems.has(c))
+            );
+            const target = this.__bestInvasionCandidate(candidates, s => {
+                const ownedNeighbors = s.connections.filter(c => ownedSystems.has(c)).length;
+                const base = ownedNeighbors >= 2 ? 10 : 1;
+                return base / (1 + hops(s));
+            }, rank);
+            if (target) tryGo(target);
+        }
+    }
+
+    /**
+     * Route to a system via BFS that avoids passing through enemy-owned systems.
+     * Falls back to normal goToSystem if no safe path exists.
+     * Only modifies this.route directly (no server broadcast) — intended for
+     * server-authoritative automation code only.
+     * @param {string} systemName
+     */
+    __goToSystemAvoidEnemy(systemName) {
+        const target = this.__systemByName(systemName);
+        const start = this.system ?? (this.route.length > 0 ? this.route[0] : null);
+        if (!start || !target) return;
+
+        const prev = new Map();
+        prev.set(start.id, null);
+        const queue = [start];
+        let found = false;
+        outer: while (queue.length > 0) {
+            const node = queue.shift();
+            for (const neighbor of node.connections) {
+                if (prev.has(neighbor.id)) continue;
+                // Skip enemy-owned intermediate systems (target is always allowed)
+                if (neighbor !== target && neighbor.owner !== null && neighbor.owner !== this.owner) continue;
+                prev.set(neighbor.id, node);
+                if (neighbor === target) { found = true; break outer; }
+                queue.push(neighbor);
+            }
+        }
+        if (!found) {
+            // No safe path — fall back to normal routing through enemy territory
+            try { this.goToSystem(systemName, true); } catch (_) { }
+            return;
+        }
+        const path = [];
+        let node = target;
+        while (node !== null) {
+            path.unshift(node);
+            node = prev.get(node.id);
+        }
+        this.route.length = 0;
+        this.route.push(...path);
     }
 
     /**
@@ -400,21 +566,24 @@ class GEOShip extends GEOSelectable {
                 this.fireLaser(target, this);
             }
 
-            // Target enemy station if no enemy ships
-            if (this.conn.server.mainServer && this.system && this.system.owner !== this.owner && !enemiesInSystem.length) {
-                const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
-                    .find(st => st.system === this.system && st.owner !== this.owner);
-                if (enemyStation) {
-                    if (Date.now() - this.__lastFired >= this.__attackCooldown) {
-                        this.__lastFired = Date.now();
-                        this.__fireLaser(enemyStation, enemyStation.health - 1);
-                    }
-                } else if (this.system.shieldHp > 0) {
-                    // Target enemy system's shield
+            // Target structures: shield must be destroyed first; station targetable only after capture
+            if (this.conn.server.mainServer && this.system && !enemiesInSystem.length) {
+                if (this.system.owner !== this.owner && this.system.shieldHp > 0) {
+                    // Phase 1: destroy the shield
                     if (Date.now() - this.__lastFired >= this.__attackCooldown) {
                         this.__lastFired = Date.now();
                         this.system.hitShield(1);
                         new GEOLaser(this.game, this, this.system, this.color);
+                    }
+                } else if (this.system.owner === this.owner) {
+                    // Phase 2: system captured — destroy any remaining enemy structures
+                    const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t), ...this.game.objectsOfTypes(GEOJumpInhibitor.t)]
+                        .find(st => st.system === this.system && st.owner !== this.owner);
+                    if (enemyStation) {
+                        if (Date.now() - this.__lastFired >= this.__attackCooldown) {
+                            this.__lastFired = Date.now();
+                            this.__fireLaser(enemyStation, enemyStation.health - 1);
+                        }
                     }
                 }
             }
@@ -424,14 +593,21 @@ class GEOShip extends GEOSelectable {
         if (this.shipClass === 'invasion' && this.system
             && this.system.owner !== this.owner
             && this.route.length === 0) {
-            // Cannot capture while shield is up or enemy combat ships present
-            const enemyCombat = [...this.system.ships].filter(
-                s => s.owner !== this.owner && s.shipClass === 'combat'
-            );
-            if (enemyCombat.length === 0 && this.system.shieldHp <= 0) {
-                this.system.captureProgress = Math.min(100, this.system.captureProgress + 0.3);
-                if (this.system.captureProgress >= 100) {
-                    this.system.capture(this.owner);
+            // Mode-specific capture gates: don't capture pass-through nodes
+            const skipCapture =
+                (this.mode === 'search-resources' && this.system.type !== 'resource')
+                || (this.mode === 'fill-borders' && this.system.owner === null
+                    && !this.system.connections.some(c => c.owner === this.owner));
+            if (!skipCapture) {
+                // Cannot capture while shield is up or enemy combat ships present
+                const enemyCombat = [...this.system.ships].filter(
+                    s => s.owner !== this.owner && s.shipClass === 'combat'
+                );
+                if (enemyCombat.length === 0 && this.system.shieldHp <= 0) {
+                    this.system.captureProgress = Math.min(100, this.system.captureProgress + 0.3);
+                    if (this.system.captureProgress >= 100) {
+                        this.system.capture(this.owner);
+                    }
                 }
             }
         }
@@ -440,7 +616,7 @@ class GEOShip extends GEOSelectable {
         if (this.system && this.system.owner !== null && this.system.owner !== this.owner) {
             const hasEnemyDefenses = [...this.system.ships].some(s => s.owner !== this.owner) ||
                 this.system.shieldHp > 0 ||
-                [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system && st.owner !== this.owner);
+                [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t), ...this.game.objectsOfTypes(GEOJumpInhibitor.t)].some(st => st.system === this.system && st.owner !== this.owner);
 
             if (hasEnemyDefenses) {
                 this.__attritionTick++;
@@ -477,51 +653,72 @@ class GEOShip extends GEOSelectable {
             }
         }
 
-        // S&DEFEND: if already parked adjacent to an enemy, cancel any further travel
-        if (this.mode === 'search-defend' && this.system && this.route.length > 0) {
-            const hasEnemy = (sys) => (sys.owner !== null && sys.owner !== this.owner) || [...sys.ships].some(s => s.owner !== this.owner);
-            if (this.system.connections.some(c => hasEnemy(c))) {
+        // --- Automation modes (invasion ships, server-authoritative) ---
+        // Re-evaluate when at owned system, OR at an unclaimed pass-through node that
+        // the current mode should not capture (so ship moves on instead of idling).
+        if (this.mode && this.shipClass === 'invasion' && this.system
+            && this.route.length === 0 && this.conn.server.mainServer) {
+            const atPassThrough =
+                (this.mode === 'search-resources' && this.system.owner === null && this.system.type !== 'resource')
+                || (this.mode === 'fill-borders' && this.system.owner === null
+                    && !this.system.connections.some(c => c.owner === this.owner));
+            if (this.system.owner === this.owner || atPassThrough) {
+                this.__modeTick++;
+                if (this.__modeTick >= fps * 3) {
+                    this.__modeTick = 0;
+                    this.__evaluateInvasionMode();
+                }
+            }
+        }
+
+        // Jump inhibitor: at enemy inhibitor system, can only retreat to previous system
+        if (this.system && this.system.type === 'inhibitor' && this.system.owner !== this.owner) {
+            if (this.route.length > 0 && this.route[0] !== this.__previousSystem) {
                 this.route.length = 0;
             }
         }
 
         // --- Movement ---
+        // Include ships physically within system radius that haven't formally arrived yet,
+        // so a ship can't depart the moment before an enemy arrives.
         const enemyShipsInSystem = this.system
-            ? [...this.system.ships].filter(x => x.owner !== this.owner)
+            ? [...this.game.objectsOfTypes(GEOShip.t)].filter(x =>
+                x.owner !== this.owner &&
+                (x.system === this.system ||
+                 (x.system === null && x.route.length > 0 &&
+                  x.route[0] === this.system && !x.__isInTransitTo(this.system)))
+              )
             : [];
 
-        if (this.route.length) {
-            let canLeave = true;
-            if (this.system) {
-                // Any enemy ship blocks movement
-                if (enemyShipsInSystem.length) {
-                    canLeave = false;
-                } else if (!this.__isInTransitTo(this.system)) {
-                    this.__previousSystem = this.system;
-                    this.system.ships.delete(this);
-                    this.system = null;
-                }
+        if (this.system && enemyShipsInSystem.length > 0) {
+            // Locked: opposing ships present — cannot depart under any circumstances
+            this.s = 0;
+        } else if (this.route.length) {
+            // Depart from current system if physically still inside it
+            if (this.system && !this.__isInTransitTo(this.system)) {
+                this.__previousSystem = this.system;
+                this.system.ships.delete(this);
+                this.system = null;
             }
 
-            if (canLeave) {
-                const nextSystem = this.route[0];
-                if (this.__isInTransitTo(nextSystem)) {
-                    this.d = this.angleTo(nextSystem);
-                    const base = GEOShip.SPEEDS[this.shipClass] ?? 2;
-                    const friendlyLane = this.__previousSystem?.owner === this.owner
-                        && nextSystem.owner === this.owner;
-                    this.s = friendlyLane ? base * 1.3 : base;
-                } else {
-                    if (this.system) {
-                        this.system.ships.delete(this);
-                    }
-                    this.system = nextSystem;
-                    this.system.ships.add(this);
-                    this.__arrivalTime = Date.now();
-                    this.__setFiringOffset();
-                    this.s = 0;
-                    this.route.shift();
+            const nextSystem = this.route[0];
+            if (this.__isInTransitTo(nextSystem)) {
+                this.d = this.angleTo(nextSystem);
+                const base = GEOShip.SPEEDS[this.shipClass] ?? 2;
+                const friendlyLane = this.__previousSystem?.owner === this.owner
+                    && nextSystem.owner === this.owner;
+                this.s = friendlyLane ? base * 1.3 : base;
+            } else {
+                if (this.system) {
+                    this.system.ships.delete(this);
                 }
+                this.system = nextSystem;
+                this.system.ships.add(this);
+                this.__arrivalTime = Date.now();
+                this.__visitedAt.set(this.system.id, Date.now());
+                this.__setFiringOffset();
+                this.s = 0;
+                this.route.shift();
             }
         } else {
             // Idle: collision avoidance within system

@@ -20,7 +20,11 @@ class GEOLaser extends GEO {
         this.h = 2000;
         setTimeout(() => this.die(), 500);
 
-        if (this.isVisible) {
+        // Play sound only when the combat is happening in a fog-of-war visible area
+        const fromSys = from.system ?? null;
+        const toSys = to.system ?? (to.t === 'system' ? to : null);
+        const combatVisible = (fromSys?.visible ?? false) || (toSys?.visible ?? false);
+        if (combatVisible) {
             IN_COMBAT_TIMEOUT = Date.now() + 3000;
             (async () => {
                 (await MUSIC.get("laser")).play(0, 40);
@@ -35,6 +39,11 @@ class GEOLaser extends GEO {
     }
 
     draw(ctx) {
+        // Hide laser visuals when both endpoints are in fog of war
+        const fromSys = this.from.system ?? null;
+        const toSys = this.to.system ?? (this.to.t === 'system' ? this.to : null);
+        if (!(fromSys?.visible ?? false) && !(toSys?.visible ?? false)) return;
+
         ctx.strokeStyle = this.color;
         ctx.lineWidth = 3;
         ctx.beginPath();

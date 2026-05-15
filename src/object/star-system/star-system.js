@@ -57,14 +57,39 @@ class GEOStarSystem extends GEOSelectable {
         }
     }
 
-    /** @type {Object.<string,string>} Owner → color */
+    /** @type {Object.<string,string>} Owner → color. Built dynamically via registerOwnerColor(). */
     static OWNER_COLORS = {
-        'local': '#00E5FF',
         null: '#546E7A',
     };
 
+    /**
+     * Register a team colour and broadcast it to all clients via a server event.
+     * Call this on the main server before creating any ships or stations.
+     * All clients should call listenForColors() so they receive remote registrations.
+     * @param {ServerConnection} server
+     * @param {string} owner
+     * @param {string} color
+     */
+    static registerOwnerColor(server, owner, color) {
+        GEOStarSystem.OWNER_COLORS[owner] = color;
+        if (server?.mainServer) {
+            server.sendEvent('player:color', { owner, color });
+        }
+    }
+
+    /**
+     * Set up a listener on `server` so incoming player:color events update the local map.
+     * Call this on every ServerConnection (main + AI) before colors are registered.
+     * @param {ServerConnection} server
+     */
+    static listenForColors(server) {
+        server.onEventListener((ev, src, data) => {
+            GEOStarSystem.OWNER_COLORS[data.owner] = data.color;
+        }, 'player:color');
+    }
+
     static ownerColor(owner) {
-        return GEOStarSystem.OWNER_COLORS[owner] ?? '#FF1744';
+        return GEOStarSystem.OWNER_COLORS[owner] ?? '#888888';
     }
 
     /**
@@ -146,6 +171,21 @@ class GEOStarSystem extends GEOSelectable {
         const cost  = COSTS[shipClass]  ?? 10;
         const ticks = TIMES[shipClass]  ?? 15 * 30;
         if (this.materials < cost) return; // insufficient materials — silently ignore
+
+        // Fleet capacity: 1 per owned system + 2 per owned shipyard, minimum 3 (shields don't count)
+        if (shipClass !== 'shield') {
+            const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+            const allStations = [...this.game.objectsOfTypes(GEOStation.t)];
+            const ownedSystems  = allSystems.filter(s => s.owner === this.owner).length;
+            const ownedStations = allStations.filter(s => s.owner === this.owner).length;
+            const cap = Math.max(3, ownedSystems * 1 + ownedStations * 2);
+            const activeShips = [...this.game.objectsOfTypes(GEOShip.t)].filter(s => s.owner === this.owner).length;
+            const queuedShips = allSystems
+                .filter(s => s.owner === this.owner)
+                .reduce((n, s) => n + s.buildQueue.filter(q => q.shipClass !== 'shield').length, 0);
+            if (activeShips + queuedShips >= cap) return; // at fleet cap
+        }
+
         this.materials -= cost;
         this.buildQueue.push({ shipClass, ticksLeft: ticks });
     }
@@ -210,15 +250,24 @@ class GEOStarSystem extends GEOSelectable {
             }
         }
 
-        // Repair node: heal friendly ships
+        // Repair node: heal 1 entity per 5s — station self-repair first, then most-damaged ship
         if (this.type === 'repair' && this.owner !== null) {
             this.__repairTick++;
             if (this.__repairTick >= fps * 5) {
                 this.__repairTick = 0;
-                for (const ship of this.ships) {
-                    if (ship.owner === this.owner) {
-                        const maxHp = GEOShip.MAX_HP[ship.shipClass] ?? 3;
-                        if (ship.health < maxHp) ship.health = Math.min(ship.health + 1, maxHp);
+                const repairSt = [...this.game.objectsOfTypes(GEORepairStation.t)].find(st => st.system === this);
+                if (repairSt && repairSt.health < GEORepairStation.MAX_HP) {
+                    repairSt.health = Math.min(repairSt.health + 1, GEORepairStation.MAX_HP);
+                } else {
+                    const candidates = [...this.ships].filter(s => s.owner === this.owner);
+                    const damaged = candidates.filter(s => s.health < (GEOShip.MAX_HP[s.shipClass] ?? 3));
+                    if (damaged.length > 0) {
+                        const target = damaged.reduce((a, b) => {
+                            const aDmg = (GEOShip.MAX_HP[a.shipClass] ?? 3) - a.health;
+                            const bDmg = (GEOShip.MAX_HP[b.shipClass] ?? 3) - b.health;
+                            return aDmg > bDmg ? a : b;
+                        });
+                        target.health = Math.min(target.health + 1, GEOShip.MAX_HP[target.shipClass] ?? 3);
                     }
                 }
             }
@@ -263,8 +312,7 @@ class GEOStarSystem extends GEOSelectable {
 
     __spawnFleet(shipClass) {
         if (!this.__server?.mainServer) return;
-        const color = GEOStarSystem.ownerColor(this.owner);
-        new GEOShip(this.game, {server: this.__server}, color, this.label.text, this.owner, shipClass);
+        new GEOShip(this.game, {server: this.__server}, this.label.text, this.owner, shipClass);
     }
 
     draw(ctx) {
@@ -329,7 +377,7 @@ class GEOStarSystem extends GEOSelectable {
         ctx.stroke();
 
         // Type indicator dot
-        const TYPE_COLORS = { resource: '#FFD600', producing: '#00E676', repair: '#2979FF', neutral: null };
+        const TYPE_COLORS = { resource: '#FFD600', producing: '#00E676', repair: '#2979FF', inhibitor: '#FF1744', neutral: null };
         const dotColor = TYPE_COLORS[this.type];
         if (dotColor) {
             ctx.beginPath();

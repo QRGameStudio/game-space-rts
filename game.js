@@ -40,19 +40,81 @@ let IN_COMBAT_TIMEOUT = null;
 
 const CONTROLS_RENDERED = new GRenderer(
     document.querySelector('#controls-c'),
-    { 'selected': null }
+    { 'selected': null, 'pendingDismantle': false, 'pendingBuilderAction': null, 'pendingBuilderLabel': '' }
 );
 CONTROLS_RENDERED.functions.getStationButtonsClass = (s) => (s && s.t === 'station' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
 CONTROLS_RENDERED.functions.getShipButtonsClass = (s) => (s && s.t === 'ship' && s.owner === 'local') ? 'buttons' : 'buttons r-hidden';
-CONTROLS_RENDERED.functions.getBuilderCommandClass = (s) => (s && s.shipClass === 'builder') ? '' : 'r-hidden';
+CONTROLS_RENDERED.functions.getBuilderCommandClass = (s, pb) => (s && s.shipClass === 'builder' && !pb) ? '' : 'r-hidden';
 CONTROLS_RENDERED.functions.getCombatCommandClass = (s) => (s && s.shipClass === 'combat') ? '' : 'r-hidden';
+CONTROLS_RENDERED.functions.getInvasionCommandClass = (s) => (s && s.shipClass === 'invasion') ? '' : 'r-hidden';
+CONTROLS_RENDERED.functions.getDismantleButtonsClass = (s, pd) =>
+    (s && (s.t === 'station' || s.t === 'repair-station' || s.t === 'jump-inhibitor') && s.owner === 'local' && !pd) ? 'buttons' : 'buttons r-hidden';
+CONTROLS_RENDERED.functions.getDismantleConfirmClass = (pd) => pd ? 'buttons' : 'buttons r-hidden';
+CONTROLS_RENDERED.functions.getBuilderConfirmClass = (s, pb) =>
+    (s && s.shipClass === 'builder' && pb) ? 'buttons' : 'buttons r-hidden';
+CONTROLS_RENDERED.functions.getShipMaxHp = (s) => s?.shipClass ? (GEOShip.MAX_HP?.[s.shipClass] ?? '?') : '?';
+CONTROLS_RENDERED.functions.getStructureMaxHp = (s) => s?.constructor?.MAX_HP ?? '?';
+CONTROLS_RENDERED.functions.getFleetCount = (s) => {
+    if (!s?.owner || !GAME) return 0;
+    return [...GAME.objectsOfTypes(GEOShip.t)].filter(x => x.owner === s.owner).length;
+};
+CONTROLS_RENDERED.functions.getFleetCap = (s) => {
+    if (!s?.owner || !GAME) return 0;
+    const systems  = [...GAME.objectsOfTypes(GEOStarSystem.t)].filter(x => x.owner === s.owner).length;
+    const stations = [...GAME.objectsOfTypes(GEOStation.t)].filter(x => x.owner === s.owner).length;
+    return Math.max(3, systems * 1 + stations * 2);
+};
 
 const AI_TEAM = 'ai_player';
 const AI_TEAM_SEP = 'separatistic_ai';
+const COLOR_LOCAL  = '#00E5FF';
+const COLOR_AI     = '#A1FA11';
+const COLOR_AI_SEP = '#9C27B0';
 
 window.deselectAll = function () {
     GEOSelectable.deselectAll();
     CONTROLS_RENDERED.variables.selected = null;
+    CONTROLS_RENDERED.variables.pendingDismantle = false;
+    CONTROLS_RENDERED.variables.pendingBuilderAction = null;
+    CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+    CONTROLS_RENDERED.render();
+};
+
+window.requestDismantle = function () {
+    CONTROLS_RENDERED.variables.pendingDismantle = true;
+    CONTROLS_RENDERED.render();
+};
+
+window.confirmDismantle = function () {
+    if (SELECTED_OBJECT?.dismantle) SELECTED_OBJECT.dismantle();
+    CONTROLS_RENDERED.variables.pendingDismantle = false;
+    deselectAll();
+};
+
+window.cancelDismantle = function () {
+    CONTROLS_RENDERED.variables.pendingDismantle = false;
+    CONTROLS_RENDERED.render();
+};
+
+window.requestBuilderBuild = function (action, label) {
+    CONTROLS_RENDERED.variables.pendingBuilderAction = action;
+    CONTROLS_RENDERED.variables.pendingBuilderLabel = label;
+    CONTROLS_RENDERED.render();
+};
+
+window.confirmBuilderBuild = function () {
+    const action = CONTROLS_RENDERED.variables.pendingBuilderAction;
+    if (SELECTED_OBJECT && action && typeof SELECTED_OBJECT[action] === 'function') {
+        SELECTED_OBJECT[action]();
+    }
+    CONTROLS_RENDERED.variables.pendingBuilderAction = null;
+    CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+    deselectAll();
+};
+
+window.cancelBuilderBuild = function () {
+    CONTROLS_RENDERED.variables.pendingBuilderAction = null;
+    CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
     CONTROLS_RENDERED.render();
 };
 
@@ -66,10 +128,9 @@ window.deselectAll = function () {
 function initPlayer(owner, system, resourceSystem) {
     resourceSystem.owner = owner;
     resourceSystem.type = 'resource';
-    const color = GEOStarSystem.ownerColor(owner);
-    new GEOStation(GAME, { server: SERVER }, color, system.label.text, owner);
+    new GEOStation(GAME, { server: SERVER }, system.label.text, owner);
     system.materials = 20;
-    new GEOShip(GAME, { server: SERVER }, color, system.label.text, owner, 'combat');
+    new GEOShip(GAME, { server: SERVER }, system.label.text, owner, 'combat');
 }
 
 async function musicController() {
@@ -109,22 +170,27 @@ async function start() {
     SERVER = new ServerConnection('MAIN', true, false);
     new ServerObjectSync(GAME, SERVER);
 
+    // Register the local player's colour and listen for incoming colour events.
+    // Each AI registers its own colour from within its start() call.
+    GEOStarSystem.listenForColors(SERVER);
+    GEOStarSystem.registerOwnerColor(SERVER, 'local', COLOR_LOCAL);
+
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
         MAP.generateMap(60, AI_TEAM, AI_TEAM_SEP);
 
         const aiHome = MAP.systems.find(s => s.owner === AI_TEAM && s.type === 'producing');
-        if (aiHome) new GEOStation(GAME, { server: SERVER }, GEOStarSystem.ownerColor(AI_TEAM), aiHome.label.text, AI_TEAM);
+        if (aiHome) new GEOStation(GAME, { server: SERVER }, aiHome.label.text, AI_TEAM);
 
         const sepHome = MAP.systems.find(s => s.owner === AI_TEAM_SEP && s.type === 'producing');
-        if (sepHome) new GEOStation(GAME, { server: SERVER }, GEOStarSystem.ownerColor(AI_TEAM_SEP), sepHome.label.text, AI_TEAM_SEP);
+        if (sepHome) new GEOStation(GAME, { server: SERVER }, sepHome.label.text, AI_TEAM_SEP);
 
         SERVER.onEventListener(() => {
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
         }, "map:fetch:request");
     }
-    await (new AIOneShip(new ServerConnection(), AI_TEAM)).start();
-    await (new AISeparatistic(new ServerConnection(), AI_TEAM_SEP, 10, GAME)).start();
+    await (new AIOneShip(new ServerConnection(), AI_TEAM, COLOR_AI)).start();
+    await (new AISeparatistic(new ServerConnection(), AI_TEAM_SEP, 10, GAME, COLOR_AI_SEP)).start();
 
     GAME.cameraCenter = { x: MAP.playerStart.x, y: MAP.playerStart.y };
 
@@ -184,6 +250,7 @@ async function start() {
 
     let __renderThrottle = 0;
     let __victoryChecked = false;
+    let __lastSelectedId = null;
 
     GAME.onStep = () => {
         // Re-render UI panel every 15 steps (~2× per second) for live value updates
@@ -191,6 +258,14 @@ async function start() {
         if (__renderThrottle >= 15) {
             __renderThrottle = 0;
             GEOStarSystem.computeVisibility(GAME);
+            // Reset confirmations when selection changes
+            const curId = SELECTED_OBJECT?.id ?? null;
+            if (curId !== __lastSelectedId) {
+                CONTROLS_RENDERED.variables.pendingDismantle = false;
+                CONTROLS_RENDERED.variables.pendingBuilderAction = null;
+                CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
+                __lastSelectedId = curId;
+            }
             CONTROLS_RENDERED.variables.selected = SELECTED_OBJECT;
             CONTROLS_RENDERED.render();
         }

@@ -1,9 +1,8 @@
-class GEORepairStation extends GEOSelectable {
-    static t = 'repair-station';
-    static MAX_HP = 5;
+class GEOJumpInhibitor extends GEOSelectable {
+    static t = 'jump-inhibitor';
+    static MAX_HP = 4;
 
     /**
-     *
      * @param game {GEG}
      * @param server {GEOServerConnection}
      * @param systemName {string}
@@ -11,14 +10,15 @@ class GEORepairStation extends GEOSelectable {
      */
     constructor(game, server, systemName, owner) {
         super(game, server, owner);
-        this.w = 40;
-        this.h = 40;
+        this.w = 35;
+        this.h = 35;
         this.t = this.constructor.t;
-        this.health = GEORepairStation.MAX_HP;
+        this.health = GEOJumpInhibitor.MAX_HP;
         this.clickable = true;
 
         this.system = this.__systemByName(systemName);
-        this.x = this.system.x + this.system.wh + 15 + this.w;
+        // Placed to the left of the star system (opposite side from stations)
+        this.x = this.system.x - this.system.wh - 15 - this.w;
         this.y = this.system.y;
         this.conn.patchMethod(this.dismantle);
         this.sendCreationEvent(arguments);
@@ -28,23 +28,18 @@ class GEORepairStation extends GEOSelectable {
     get color() { return GEOStarSystem.ownerColor(this.owner); }
 
     /**
-     * Dismantle this repair station: refund 15 materials, revert system to neutral.
+     * Dismantle this inhibitor: refund 10 materials, revert system type to neutral.
      */
     dismantle() {
         if (!this.conn.server.mainServer) return;
         if (!this.system) return;
-        this.system.materials = (this.system.materials || 0) + 15;
+        this.system.materials = (this.system.materials || 0) + 10;
         this.die();
     }
 
     onclick(x, y, clickedObject) {
-        if (this.owner !== 'local') {
-            return false;
-        }
-        if ([...clickedObject].find(x => x.t === GEOShip.t)) {
-            // if also ship is clicked, prefer the ship
-            return false;
-        }
+        if (this.owner !== 'local') return false;
+        if ([...clickedObject].find(x => x.t === GEOShip.t)) return false;
         this.selectObject();
         return true;
     }
@@ -54,13 +49,19 @@ class GEORepairStation extends GEOSelectable {
             if (!this.system || !this.system.visible) return;
         }
         ctx.strokeStyle = this.constructor.selectedId === this.id ? 'orange' : this.color;
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.rect(this.x - this.wh, this.y - this.hh, this.w, this.h);
-        ctx.moveTo(this.x, this.y - this.hh + 10);
-        ctx.lineTo(this.x, this.y + this.hh - 10);
-        ctx.moveTo(this.x - this.wh + 10, this.y);
-        ctx.lineTo(this.x + this.wh - 10, this.y);
+        // Diamond/rhombus outline
+        ctx.moveTo(this.x, this.y - this.hh);
+        ctx.lineTo(this.x + this.wh, this.y);
+        ctx.lineTo(this.x, this.y + this.hh);
+        ctx.lineTo(this.x - this.wh, this.y);
+        ctx.closePath();
+        // Inner X to indicate blocking
+        ctx.moveTo(this.x - this.wh * 0.45, this.y - this.hh * 0.45);
+        ctx.lineTo(this.x + this.wh * 0.45, this.y + this.hh * 0.45);
+        ctx.moveTo(this.x + this.wh * 0.45, this.y - this.hh * 0.45);
+        ctx.lineTo(this.x - this.wh * 0.45, this.y + this.hh * 0.45);
         ctx.stroke();
     }
 
@@ -105,7 +106,7 @@ class GEORepairStation extends GEOSelectable {
 
     die() {
         if (this.conn && this.conn.server.mainServer) {
-            if (this.system && this.system.type === 'repair') {
+            if (this.system && this.system.type === 'inhibitor') {
                 this.system.type = 'neutral';
             }
         }
@@ -126,6 +127,6 @@ class GEORepairStation extends GEOSelectable {
     }
 
     __systemByName(systemName) {
-        return [...this.game.objectsOfTypes(GEOStarSystem.t)].find((system) => system?.label.text === systemName);
+        return [...this.game.objectsOfTypes(GEOStarSystem.t)].find(s => s?.label.text === systemName);
     }
 }

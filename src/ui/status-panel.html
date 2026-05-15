@@ -3,7 +3,7 @@
     <!-- Ship info -->
     <div r-if="v.selected && v.selected.t === 'ship'" class="info-block">
         <b r-var="v.selected.shipClass"></b>&nbsp;
-        HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="(GEOShip.MAX_HP||{})[v.selected.shipClass]||'?'"></b>&nbsp;
+        HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="f.getShipMaxHp(v.selected)"></b>&nbsp;
         <span r-var="v.selected.veterancy"></span>&nbsp;
         XP:<span r-var="v.selected.xp"></span>&nbsp;
         Route:<span r-var="v.selected.route ? v.selected.route.length : 0"></span>&nbsp;
@@ -13,9 +13,23 @@
     <!-- Station info -->
     <div r-if="v.selected && v.selected.t === 'station'" class="info-block">
         <b>SHIPYARD</b>&nbsp;
+        HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="f.getStructureMaxHp(v.selected)"></b>&nbsp;
         Mat:<b r-var="v.selected.system ? Math.floor(v.selected.system.materials) : 0"></b>&nbsp;
+        Fleet:<b r-var="f.getFleetCount(v.selected)"></b>/<b r-var="f.getFleetCap(v.selected)"></b>&nbsp;
         <span r-var="v.selected.system && v.selected.system.buildQueue.length ? 'Queue: ' + v.selected.system.buildQueue.map(function(q){return q.shipClass[0].toUpperCase()+'('+Math.ceil(q.ticksLeft/30)+'s)'}).join(' ') : 'Queue: empty'"></span>
         <span r-if="v.selected.system && v.selected.system.shieldHp > 0">&nbsp;Shield:<span r-var="v.selected.system && v.selected.system.shieldHp"></span>/<span r-var="v.selected.system && v.selected.system.shieldMaxHp"></span></span>
+    </div>
+
+    <!-- Repair station info -->
+    <div r-if="v.selected && v.selected.t === 'repair-station'" class="info-block">
+        <b>REPAIR BASE</b>&nbsp;
+        HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="f.getStructureMaxHp(v.selected)"></b>
+    </div>
+
+    <!-- Jump inhibitor info -->
+    <div r-if="v.selected && v.selected.t === 'jump-inhibitor'" class="info-block">
+        <b>INHIBITOR</b>&nbsp;
+        HP:<b r-var="Math.ceil(v.selected.health)"></b>/<b r-var="f.getStructureMaxHp(v.selected)"></b>
     </div>
 
     <!-- System info -->
@@ -37,12 +51,35 @@
 
     <!-- Builder + combat ship commands (player ships only) -->
     <div r-attr='{"class": "f.getShipButtonsClass(v.selected)"}'>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected)"}' r-click="v.selected.buildShipyard(); deselectAll()">🏗 Build Shipyard</button>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected)"}' r-click="v.selected.buildRepairStation(); deselectAll()">🛠 Build Repair Station</button>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected)"}' r-click="v.selected.buildShield(); deselectAll()">⬡ Build Shield</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildShipyard', 'Shipyard')">🏗 Build Shipyard</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildRepairStation', 'Repair Station')">🛠 Build Repair Station</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildShield', 'Shield')">⬡ Build Shield</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildJumpInhibitor', 'Inhibitor')">⊗ Build Inhibitor</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.stop(); deselectAll()">■ STOP</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.setMode('search'); deselectAll()">◎ SEARCH</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.setMode('search-defend'); deselectAll()">◈ S&amp;DEFEND</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.setMode('search-destroy'); deselectAll()">✕ S&amp;DESTROY</button>
+        <button r-attr='{"class": "f.getInvasionCommandClass(v.selected)"}' r-click="v.selected.stop(); deselectAll()">■ STOP</button>
+        <button r-attr='{"class": "f.getInvasionCommandClass(v.selected)"}' r-click="v.selected.setMode('search-resources'); deselectAll()">★ SEARCH RESOURCES</button>
+        <button r-attr='{"class": "f.getInvasionCommandClass(v.selected)"}' r-click="v.selected.setMode('fill-borders'); deselectAll()">⬡ FILL BORDERS</button>
+    </div>
+
+    <!-- Builder build confirmation -->
+    <div r-attr='{"class": "f.getBuilderConfirmClass(v.selected, v.pendingBuilderAction)"}'>
+        <span>Build <b r-var="v.pendingBuilderLabel"></b>?</span>
+        <button r-click="confirmBuilderBuild()">YES</button>
+        <button r-click="cancelBuilderBuild()">NO</button>
+    </div>
+
+    <!-- Dismantle button (station, repair-station, or inhibitor — player owned, no pending) -->
+    <div r-attr='{"class": "f.getDismantleButtonsClass(v.selected, v.pendingDismantle)"}'>
+        <button r-click="requestDismantle()">🔧 Dismantle</button>
+    </div>
+
+    <!-- Dismantle confirmation -->
+    <div r-attr='{"class": "f.getDismantleConfirmClass(v.pendingDismantle)"}'>
+        <span>Dismantle?</span>
+        <button r-click="confirmDismantle()">YES</button>
+        <button r-click="cancelDismantle()">NO</button>
     </div>
 </div>

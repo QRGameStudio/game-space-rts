@@ -8,10 +8,12 @@ class AISeparatistic {
      * @param {string} teamName
      * @param {number} maxSystems
      * @param {GEG|null} mainGame - reference to the main server's GEG for economy access
+     * @param {string} color  Hex colour for this team
      */
-    constructor(server, teamName = 'separatistic_ai', maxSystems = 10, mainGame = null) {
+    constructor(server, teamName = 'separatistic_ai', maxSystems = 10, mainGame = null, color = '#9C27B0') {
         this.server   = server;
         this.teamName = teamName;
+        this.__color  = color;
         this.maxSystems = maxSystems;
 
         /**
@@ -39,6 +41,8 @@ class AISeparatistic {
 
     start() {
         return new Promise((resolve) => {
+            GEOStarSystem.listenForColors(this.server);
+            GEOStarSystem.registerOwnerColor(this.server, this.teamName, this.__color);
             this.server.onEventListener((event, source, data) => {
                 this.map.loadDict(data);
                 this.game.run();
@@ -153,9 +157,17 @@ class AISeparatistic {
                 const candidates = this.__findClosestUnclaimed(home, budget)
                     .filter(s => !this.__targetedLabels.has(s.label.text));
 
+                const now = Date.now();
                 for (const ship of idleInvasion) {
                     if (!candidates.length) break;
-                    const target = candidates.shift();
+                    // Pick the closest fresh candidate (not visited in the last 90s).
+                    // If all are in cooldown, skip this ship — it waits rather than oscillating.
+                    const fresh = candidates.filter(s =>
+                        now - (ship.__visitedAt?.get(s.id) ?? 0) >= GEOShip.VISIT_COOLDOWN
+                    );
+                    if (!fresh.length) continue;
+                    // Deterministic: pick the first (BFS already sorted closest-first)
+                    const target = candidates.splice(candidates.indexOf(fresh[0]), 1)[0];
                     this.__targetedLabels.add(target.label.text);
                     try { ship.goToSystem(target.label.text, true); } catch (_) {}
                 }

@@ -2,9 +2,12 @@ class AIOneShip {
     /**
      * @param {ServerConnection} server
      * @param {string} teamName
+     * @param {string} color  Hex colour broadcast via player:color so all clients know this team's colour
      */
-    constructor(server, teamName = 'ai_player') {
+    constructor(server, teamName = 'ai_player', color = '#FF1744') {
         this.server = server;
+        this.teamName = teamName;
+        this.__color = color;
         this.game = new GEG(document.getElementById('ai-canvas'));
         this.teamName = teamName;
         this.map = new MapGenerator(this.game, this.server);
@@ -15,6 +18,8 @@ class AIOneShip {
 
     start() {
         return new Promise((resolve) => {
+            GEOStarSystem.listenForColors(this.server);
+            GEOStarSystem.registerOwnerColor(this.server, this.teamName, this.__color);
             this.server.onEventListener((event, source, data) => {
                 this.map.loadDict(data);
                 this.game.run();
@@ -40,8 +45,18 @@ class AIOneShip {
         const msg = `[AIOneShip] Spawning destroyer at ${home ? home.label.text : 'null'}`;
         console.log(msg);
         window.AI_LOGS.push(msg);
+
+        // Enforce fleet cap before spawning
+        const allSystems  = [...this.game.objectsOfTypes(GEOStarSystem.t)];
+        const allStations = [...this.game.objectsOfTypes(GEOStation.t)];
+        const ownedSystems  = allSystems.filter(s => s.owner === this.teamName).length;
+        const ownedStations = allStations.filter(s => s.owner === this.teamName).length;
+        const cap = Math.max(3, ownedSystems * 1 + ownedStations * 2);
+        const activeShips = [...this.game.objectsOfTypes(GEOShip.t)].filter(s => s.owner === this.teamName).length;
+        if (activeShips >= cap) return;
+
         this.__ship = new GEOShip(
-            this.game, {server: this.server}, '#FF1744',
+            this.game, {server: this.server},
             home ? home.label.text : '', this.teamName, 'combat'
         );
         this.__ship.setMode('search-destroy');
