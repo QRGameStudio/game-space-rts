@@ -1,5 +1,5 @@
-class GEOStation extends GEOSelectable {
-    static t = 'station';
+class GEORepairStation extends GEOSelectable {
+    static t = 'repair-station';
 
     /**
      *
@@ -14,24 +14,14 @@ class GEOStation extends GEOSelectable {
         this.w = 40;
         this.h = 40;
         this.t = this.constructor.t;
-        this.health = 30;
+        this.health = 10;
         this.clickable = true;
 
         this.color = color;
         this.system = this.__systemByName(systemName);
         this.x = this.system.x + this.system.wh + 15 + this.w;
-        this.y = this.system.y
-        this.conn.patchMethod(this.build);
+        this.y = this.system.y;
         this.sendCreationEvent(arguments);
-    }
-
-    build(objClass) {
-        if (this.system && this.system.type === 'producing') {
-            this.system.addToQueue(objClass);
-        } else {
-            // Fallback: immediate spawn if not a producing node
-            new GEOShip(this.game, { server: this.conn.server }, this.color, this.system.label.text, this.owner, objClass);
-        }
     }
 
     onclick(x, y, clickedObject) {
@@ -54,11 +44,10 @@ class GEOStation extends GEOSelectable {
         ctx.lineWidth = 5;
         ctx.beginPath();
         ctx.rect(this.x - this.wh, this.y - this.hh, this.w, this.h);
-        ctx.rect(this.x - this.wh - (this.wh * 0.5), this.y - (ctx.lineWidth / 2), this.wh * 0.5, ctx.lineWidth);
-        ctx.rect(this.x + this.wh, this.y - (ctx.lineWidth / 2), this.wh * 0.5, ctx.lineWidth);
-        ctx.rect(this.x - this.wh - (this.wh * 0.5) - (ctx.lineWidth / 2), this.y - (this.wh * 0.75), ctx.lineWidth, this.h * 0.75);
-        ctx.rect(this.x + this.wh + (this.wh * 0.5), this.y - (this.wh * 0.75), ctx.lineWidth, this.h * 0.75);
-        ctx.closePath();
+        ctx.moveTo(this.x, this.y - this.hh + 10);
+        ctx.lineTo(this.x, this.y + this.hh - 10);
+        ctx.moveTo(this.x - this.wh + 10, this.y);
+        ctx.lineTo(this.x + this.wh - 10, this.y);
         ctx.stroke();
     }
 
@@ -68,7 +57,7 @@ class GEOStation extends GEOSelectable {
 
     die() {
         if (this.conn && this.conn.server.mainServer) {
-            if (this.system && this.system.type === 'producing') {
+            if (this.system && this.system.type === 'repair') {
                 this.system.type = 'neutral';
             }
         }

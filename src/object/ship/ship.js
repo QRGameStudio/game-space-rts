@@ -1,21 +1,21 @@
 /**
- * @typedef {'combat' | 'invasion' | 'siege' | 'builder'} GEOShipClass
+ * @typedef {'combat' | 'invasion' | 'builder'} GEOShipClass
  */
 
 class GEOShip extends GEOSelectable {
     static t = 'ship';
 
     /** Base HP per class */
-    static MAX_HP = { combat: 3, invasion: 1, siege: 2, builder: 1, fighter: 3, bomber: 2 };
+    static MAX_HP = { combat: 3, invasion: 1, builder: 1, fighter: 3 };
 
     /** Attack cooldown in ms per veterancy level */
     static COOLDOWNS = { rookie: 2000, veteran: 1700, elite: 1400 };
 
     /** Speeds (units/step at 30fps → stored as step speed) */
-    static SPEEDS = { combat: 2.5, invasion: 1.5, siege: 1.0, builder: 1.2, fighter: 2.5, bomber: 1.0 };
+    static SPEEDS = { combat: 2.5, invasion: 1.5, builder: 1.2, fighter: 2.5 };
 
     /** Materials cost */
-    static COSTS = { combat: 10, invasion: 15, siege: 20, builder: 30 };
+    static COSTS = { combat: 10, invasion: 15, builder: 50 };
 
     /**
      * @param game {GEG}
@@ -30,7 +30,6 @@ class GEOShip extends GEOSelectable {
 
         // Normalise legacy class names
         if (shipClass === 'fighter') shipClass = 'combat';
-        if (shipClass === 'bomber') shipClass = 'siege';
 
         this.shipClass = shipClass;
 
@@ -42,10 +41,6 @@ class GEOShip extends GEOSelectable {
             case 'invasion':
                 this.w = 25; this.h = 25;
                 this.health = GEOShip.MAX_HP.invasion;
-                break;
-            case 'siege':
-                this.w = 25; this.h = 50;
-                this.health = GEOShip.MAX_HP.siege;
                 break;
             case 'builder':
                 this.w = 20; this.h = 20;
@@ -80,8 +75,6 @@ class GEOShip extends GEOSelectable {
         this.veterancy = 'rookie';
         /** Attrition tick counter */
         this.__attritionTick = 0;
-        /** Siege: ticks since last station hit */
-        this.__siegeTick = 0;
         /** @type {null|'search'|'search-defend'|'search-destroy'} Automation mode */
         this.mode = null;
         /** Tick counter for automation re-evaluation */
@@ -91,6 +84,8 @@ class GEOShip extends GEOSelectable {
         this.conn.patchMethod(this.setMode);
         this.conn.patchMethod(this.stop);
         this.conn.patchMethod(this.buildShipyard);
+        this.conn.patchMethod(this.buildRepairStation);
+        this.conn.patchMethod(this.buildShield);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
@@ -144,12 +139,6 @@ class GEOShip extends GEOSelectable {
         } else if (this.shipClass === 'invasion') {
             // Square outline
             ctx.rect(this.x - this.wh, this.y - this.hh, this.w, this.h);
-        } else if (this.shipClass === 'siege') {
-            // Downward triangle
-            ctx.moveTo(this.x, this.y + this.hh);
-            ctx.lineTo(this.x + this.wh, this.y - this.hh);
-            ctx.lineTo(this.x - this.wh, this.y - this.hh);
-            ctx.closePath();
         } else if (this.shipClass === 'builder') {
             // Cross / plus symbol
             ctx.moveTo(this.x - this.wh, this.y);
@@ -255,6 +244,26 @@ class GEOShip extends GEOSelectable {
         if (hasStation) return;
         this.system.type = 'producing';
         new GEOStation(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner);
+        this.die();
+    }
+
+    /** Builder ship: convert this system to a repair station and consume the ship. */
+    buildRepairStation() {
+        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
+        if (!this.conn.server.mainServer) return;
+        const hasStation = [...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system);
+        if (hasStation) return;
+        this.system.type = 'repair';
+        new GEORepairStation(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner);
+        this.die();
+    }
+
+    /** Builder ship: build a planetary shield around the system and consume the ship. */
+    buildShield() {
+        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
+        if (!this.conn.server.mainServer) return;
+        if (this.system.shieldHp > 0) return; // Already has a shield
+        this.system.shieldHp = this.system.shieldMaxHp;
         this.die();
     }
 
@@ -379,36 +388,30 @@ class GEOShip extends GEOSelectable {
                 : [];
 
             if (this.conn.server.mainServer && enemiesInSystem.length) {
-                // Priority 1: enemy combat ships; Priority 2: siege/invasion
+                // Priority 1: enemy combat ships; Priority 2: other ships
                 const target = enemiesInSystem.find(s => s.shipClass === 'combat')
                     ?? enemiesInSystem[0];
                 this.fireLaser(target, this);
             }
 
-            // Target enemy system's shield
-            if (this.conn.server.mainServer && this.system && this.system.owner !== this.owner
-                && this.system.shieldHp > 0 && !enemiesInSystem.length) {
-                if (Date.now() - this.__lastFired >= this.__attackCooldown) {
-                    this.__lastFired = Date.now();
-                    this.system.hitShield(1);
-                    new GEOLaser(this.game, this, this.system, this.color);
-                }
-            }
-        }
-
-        // --- Siege: attack enemy stations ---
-        if (this.shipClass === 'siege' && this.system && this.system.owner !== this.owner && this.system.owner !== null) {
-            this.__siegeTick++;
-            if (this.__siegeTick >= fps * 2) {
-                this.__siegeTick = 0;
-                const enemyStation = [...this.game.objectsOfTypes(GEOStation.t)]
+            // Target enemy station if no enemy ships
+            if (this.conn.server.mainServer && this.system && this.system.owner !== this.owner && !enemiesInSystem.length) {
+                const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
                     .find(st => st.system === this.system && st.owner !== this.owner);
                 if (enemyStation) {
-                    this.__fireLaser(enemyStation, enemyStation.health - 1);
+                    if (Date.now() - this.__lastFired >= this.__attackCooldown) {
+                        this.__lastFired = Date.now();
+                        this.__fireLaser(enemyStation, enemyStation.health - 1);
+                    }
+                } else if (this.system.shieldHp > 0) {
+                    // Target enemy system's shield
+                    if (Date.now() - this.__lastFired >= this.__attackCooldown) {
+                        this.__lastFired = Date.now();
+                        this.system.hitShield(1);
+                        new GEOLaser(this.game, this, this.system, this.color);
+                    }
                 }
             }
-        } else {
-            this.__siegeTick = 0;
         }
 
         // --- Invasion: capture progress ---
@@ -429,10 +432,24 @@ class GEOShip extends GEOSelectable {
 
         // --- Territory Attrition ---
         if (this.system && this.system.owner !== null && this.system.owner !== this.owner) {
-            this.__attritionTick++;
-            if (this.__attritionTick >= fps * 10) {
+            const hasEnemyDefenses = [...this.system.ships].some(s => s.owner !== this.owner) ||
+                this.system.shieldHp > 0 ||
+                [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system && st.owner !== this.owner);
+
+            if (hasEnemyDefenses) {
+                this.__attritionTick++;
+                if (this.__attritionTick >= fps * 10) {
+                    this.__attritionTick = 0;
+                    this.health -= 1;
+                    
+                    // Visual cue for attrition damage
+                    const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
+                        .find(st => st.system === this.system && st.owner !== this.owner);
+                    const source = enemyStation || this.system;
+                    new GEOLaser(this.game, source, this, source.color || GEOStarSystem.ownerColor(this.system.owner));
+                }
+            } else {
                 this.__attritionTick = 0;
-                this.health -= 1;
             }
         } else {
             this.__attritionTick = 0;
@@ -470,8 +487,8 @@ class GEOShip extends GEOSelectable {
         if (this.route.length) {
             let canLeave = true;
             if (this.system) {
-                // Combat ships blockade — only combat ships block movement
-                if (enemyShipsInSystem.filter(s => s.shipClass === 'combat').length) {
+                // Any enemy ship blocks movement
+                if (enemyShipsInSystem.length) {
                     canLeave = false;
                 } else if (!this.__isInTransitTo(this.system)) {
                     this.__previousSystem = this.system;

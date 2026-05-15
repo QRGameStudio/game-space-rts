@@ -227,10 +227,6 @@ class MapGenerator {
             const roll = Math.random();
             if (roll < 0.25) {
                 this.systems[i].type = 'resource';
-            } else if (roll < 0.40) {
-                this.systems[i].type = 'producing';
-            } else if (roll < 0.50) {
-                this.systems[i].type = 'repair';
             } else {
                 this.systems[i].type = 'neutral';
             }

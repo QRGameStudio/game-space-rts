@@ -141,8 +141,8 @@ class GEOStarSystem extends GEOSelectable {
      */
     addToQueue(shipClass) {
         if (this.type !== 'producing') return;
-        const COSTS = { combat: 10, invasion: 15, siege: 20, shield: 5, builder: 75 };
-        const TIMES = { combat: 15 * 30, invasion: 20 * 30, siege: 30 * 30, shield: 10 * 30, builder: 25 * 30 };
+        const COSTS = { combat: 10, invasion: 15, shield: 5, builder: 50 };
+        const TIMES = { combat: 15 * 30, invasion: 20 * 30, shield: 10 * 30, builder: 25 * 30 };
         const cost  = COSTS[shipClass]  ?? 10;
         const ticks = TIMES[shipClass]  ?? 15 * 30;
         if (this.materials < cost) return; // insufficient materials — silently ignore
@@ -240,13 +240,21 @@ class GEOStarSystem extends GEOSelectable {
                 }
             }
         }
+
+        // Revert capture progress if no invasion fleet is present
+        if (this.captureProgress > 0) {
+            const hasInvasion = [...this.ships].some(s => s.shipClass === 'invasion' && s.owner !== this.owner);
+            if (!hasInvasion) {
+                this.captureProgress = Math.max(0, this.captureProgress - 0.1);
+            }
+        }
     }
 
     __spawnTransport() {
         if (!this.__server?.mainServer) return;
         const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
         const target = systems
-            .filter(s => s !== this && s.owner === this.owner && s.type === 'producing' && s.materials < 100)
+            .filter(s => s !== this && s.owner === this.owner && s.type === 'producing' && s.materials < 50)
             .sort((a, b) => GEG.distanceBetween(this, a) - GEG.distanceBetween(this, b))[0];
         if (!target) return;
         const color = '#546E7A';

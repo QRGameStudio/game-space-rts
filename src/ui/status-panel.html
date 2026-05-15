@@ -28,20 +28,21 @@
     </div>
 
     <!-- Build buttons (only player's station) -->
-    <div r-if="v.selected && v.selected.t === 'station' && v.selected.owner === 'local'" class="buttons">
+    <div r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.t === 'station' && v.selected.owner === 'local') ? 'buttons' : 'buttons r-hidden'&quot;}">
         <button r-click="v.selected.build('combat')">◆ Combat 10M</button>
         <button r-click="v.selected.build('invasion')">■ Invasion 15M</button>
-        <button r-click="v.selected.build('siege')">▲ Siege 20M</button>
-        <button r-click="v.selected.build('builder')">✛ Builder 75M</button>
+        <button r-click="v.selected.build('builder')">✛ Builder 50M</button>
         <button r-click="v.selected.build('shield')">⬡ Shield 5M</button>
     </div>
 
     <!-- Builder + combat ship commands (player ships only) -->
-    <div r-if="v.selected && v.selected.t === 'ship' && v.selected.owner === 'local'" class="buttons">
-        <button r-if="v.selected.shipClass === 'builder'" r-click="v.selected.buildShipyard(); deselectAll()">🏗 Build Shipyard</button>
-        <button r-if="v.selected.shipClass === 'combat'" r-click="v.selected.stop(); deselectAll()">■ STOP</button>
-        <button r-if="v.selected.shipClass === 'combat'" r-click="v.selected.setMode('search'); deselectAll()">◎ SEARCH</button>
-        <button r-if="v.selected.shipClass === 'combat'" r-click="v.selected.setMode('search-defend'); deselectAll()">◈ S&amp;DEFEND</button>
-        <button r-if="v.selected.shipClass === 'combat'" r-click="v.selected.setMode('search-destroy'); deselectAll()">✕ S&amp;DESTROY</button>
+    <div r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.t === 'ship' && v.selected.owner === 'local') ? 'buttons' : 'buttons r-hidden'&quot;}">
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'builder') ? '' : 'r-hidden'&quot;}" r-click="v.selected.buildShipyard(); deselectAll()">🏗 Build Shipyard</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'builder') ? '' : 'r-hidden'&quot;}" r-click="v.selected.buildRepairStation(); deselectAll()">🛠 Build Repair Station</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'builder') ? '' : 'r-hidden'&quot;}" r-click="v.selected.buildShield(); deselectAll()">⬡ Build Shield</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'combat') ? '' : 'r-hidden'&quot;}" r-click="v.selected.stop(); deselectAll()">■ STOP</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'combat') ? '' : 'r-hidden'&quot;}" r-click="v.selected.setMode('search'); deselectAll()">◎ SEARCH</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'combat') ? '' : 'r-hidden'&quot;}" r-click="v.selected.setMode('search-defend'); deselectAll()">◈ S&amp;DEFEND</button>
+        <button r-attr="{&quot;class&quot;: &quot;(v.selected && v.selected.shipClass === 'combat') ? '' : 'r-hidden'&quot;}" r-click="v.selected.setMode('search-destroy'); deselectAll()">✕ S&amp;DESTROY</button>
     </div>
 </div>

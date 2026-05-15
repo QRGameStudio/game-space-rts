@@ -1,0 +1,25 @@
+name: publish-repo
+on:
+  push:
+    branches:
+      - 'master'
+      - 'main'
+      - 'prod'
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    env:
+      REPO_DEPLOY_SSH_KEY: ${{ secrets.REPO_DEPLOY_SSH_KEY }}
+    steps:
+      - run: mkdir src
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 100
+          path: 'src'
+      - name: run deploy
+        shell: bash
+        run: |
+          cd src &&
+          git clone https://github.com/QRGameStudio/util-action-build.git &&
+          bash util-action-build/build.sh
