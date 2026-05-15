@@ -637,30 +637,7 @@ class GEOShip extends GEOSelectable {
             }
         }
 
-        // --- Territory Attrition ---
-        if (this.system && this.system.owner !== null && this.system.owner !== this.owner) {
-            const hasEnemyDefenses = [...this.system.ships].some(s => s.owner !== this.owner) ||
-                this.system.shieldHp > 0 ||
-                [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t), ...this.game.objectsOfTypes(GEOJumpInhibitor.t)].some(st => st.system === this.system && st.owner !== this.owner);
-
-            if (hasEnemyDefenses) {
-                this.__attritionTick++;
-                if (this.__attritionTick >= fps * 10) {
-                    this.__attritionTick = 0;
-                    this.health -= 1;
-
-                    // Visual cue for attrition damage
-                    const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
-                        .find(st => st.system === this.system && st.owner !== this.owner);
-                    const source = enemyStation || this.system;
-                    new GEOLaser(this.game, source, this, source.color || GEOStarSystem.ownerColor(this.system.owner));
-                }
-            } else {
-                this.__attritionTick = 0;
-            }
-        } else {
-            this.__attritionTick = 0;
-        }
+        // --- Territory Attrition (removed) ---
 
         // --- Death check ---
         if (this.health <= 0) {

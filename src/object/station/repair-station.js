@@ -100,6 +100,27 @@ class GEORepairStation extends GEOSelectable {
         super.step();
         if (this.health <= 0) {
             this.explode();
+            return;
+        }
+
+        // Fire lasers every 6 seconds
+        if (this.conn.server.mainServer) {
+            if (!this.__laserTick) this.__laserTick = 0;
+            this.__laserTick++;
+            if (this.__laserTick >= fps * 6) {
+                this.__laserTick = 0;
+                this.__fireLaser();
+            }
+        }
+    }
+
+    __fireLaser() {
+        if (!this.system) return;
+        const enemies = [...this.system.ships].filter(s => s.owner !== this.owner);
+        if (enemies.length > 0) {
+            const target = enemies[0];
+            new GEOLaser(this.game, this, target, this.color);
+            target.health -= 1;
         }
     }
 
