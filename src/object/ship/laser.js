@@ -19,6 +19,13 @@ class GEOLaser extends GEO {
         this.w = 2000;
         this.h = 2000;
         setTimeout(() => this.die(), 500);
+
+        if (this.isVisible) {
+            IN_COMBAT_TIMEOUT = Date.now() + 3000;
+            (async () => {
+                (await MUSIC.get("laser")).play(0, 40);
+            })();
+        }
     }
 
     step() {

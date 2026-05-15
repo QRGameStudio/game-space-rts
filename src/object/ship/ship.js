@@ -120,7 +120,7 @@ class GEOShip extends GEOSelectable {
             } else {
                 // In transit: hide if neither the departed system nor the next waypoint is visible
                 const from = this.__previousSystem;
-                const to   = this.route.length > 0 ? this.route[0] : null;
+                const to = this.route.length > 0 ? this.route[0] : null;
                 if ((!from || !from.visible) && (!to || !to.visible)) return;
             }
         }
@@ -202,6 +202,12 @@ class GEOShip extends GEOSelectable {
             ctx.stroke();
             ctx.restore();
         };
+        if (this.isVisible) {
+            (async () => {
+                IN_COMBAT_TIMEOUT = Date.now() + 5000;
+                (await MUSIC.get("boom")).play(0, 40);
+            })();
+        }
         super.explode();  // logs + calls die()
     }
 
@@ -243,7 +249,7 @@ class GEOShip extends GEOSelectable {
         const hasStation = [...this.game.objectsOfTypes(GEOStation.t)].some(st => st.system === this.system);
         if (hasStation) return;
         this.system.type = 'producing';
-        new GEOStation(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner);
+        new GEOStation(this.game, { server: this.conn.server }, this.color, this.system.label.text, this.owner);
         this.die();
     }
 
@@ -254,7 +260,7 @@ class GEOShip extends GEOSelectable {
         const hasStation = [...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system);
         if (hasStation) return;
         this.system.type = 'repair';
-        new GEORepairStation(this.game, {server: this.conn.server}, this.color, this.system.label.text, this.owner);
+        new GEORepairStation(this.game, { server: this.conn.server }, this.color, this.system.label.text, this.owner);
         this.die();
     }
 
@@ -285,7 +291,7 @@ class GEOShip extends GEOSelectable {
     __evaluateMode() {
         const allSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
         const hasEnemy = (sys) => (sys.owner !== null && sys.owner !== this.owner) || [...sys.ships].some(s => s.owner !== this.owner);
-        const tryGo = (sys) => { try { this.goToSystem(sys.label.text, true); } catch (_) {} };
+        const tryGo = (sys) => { try { this.goToSystem(sys.label.text, true); } catch (_) { } };
 
         let actionTaken = false;
 
@@ -441,7 +447,7 @@ class GEOShip extends GEOSelectable {
                 if (this.__attritionTick >= fps * 10) {
                     this.__attritionTick = 0;
                     this.health -= 1;
-                    
+
                     // Visual cue for attrition damage
                     const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
                         .find(st => st.system === this.system && st.owner !== this.owner);

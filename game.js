@@ -31,15 +31,22 @@ let GAME;
 /** @type {GEO|null} */
 let SELECTED_OBJECT = null;
 
+
+/**
+ * Timestamp that says when the combat status will end
+ * @type {number|null}
+ */
+let IN_COMBAT_TIMEOUT = null;
+
 const CONTROLS_RENDERED = new GRenderer(
     document.querySelector('#controls-c'),
-    {'selected': null}
+    { 'selected': null }
 )
 
 const AI_TEAM = 'ai_player';
 const AI_TEAM_SEP = 'separatistic_ai';
 
-window.deselectAll = function() {
+window.deselectAll = function () {
     GEOSelectable.deselectAll();
     CONTROLS_RENDERED.variables.selected = null;
     CONTROLS_RENDERED.render();
@@ -56,16 +63,43 @@ function initPlayer(owner, system, resourceSystem) {
     resourceSystem.owner = owner;
     resourceSystem.type = 'resource';
     const color = GEOStarSystem.ownerColor(owner);
-    new GEOStation(GAME, {server: SERVER}, color, system.label.text, owner);
+    new GEOStation(GAME, { server: SERVER }, color, system.label.text, owner);
     system.materials = 20;
-    new GEOShip(GAME, {server: SERVER}, color, system.label.text, owner, 'combat');
+    new GEOShip(GAME, { server: SERVER }, color, system.label.text, owner, 'combat');
+}
+
+async function musicController() {
+    let currentTrack = null;
+    /** @type {GTonesSequence|null} */
+    let currentSong = null;
+    let targetTrack = "songMainTheme";
+
+    while (true) {
+        if (IN_COMBAT_TIMEOUT + 15000 > Date.now()) {
+            targetTrack = "songCombat";
+        } else if (IN_COMBAT_TIMEOUT + 30000 > Date.now()) {
+            targetTrack = "songMining";
+        } else {
+            targetTrack = "songMainTheme";
+        }
+
+        if (currentTrack !== targetTrack) {
+            if (currentSong !== null) {
+                currentSong.stop();
+            }
+            currentSong = await MUSIC.get(targetTrack);
+            currentSong.play(-1, 20);
+            currentTrack = targetTrack;
+        }
+        await GUt.sleep(300);
+    }
 }
 
 async function start() {
     const canvas = $('#game-canvas');
     GAME = new GEG(canvas);
 
-    GAME.res = GUt.isLandscape() ? {w: 1920, h: 1080} : {w: 1080, h: 1920};
+    GAME.res = GUt.isLandscape() ? { w: 1920, h: 1080 } : { w: 1080, h: 1920 };
     GAME.fps = 30;
 
     SERVER = new ServerConnection('MAIN', true, false);
@@ -74,12 +108,12 @@ async function start() {
     MAP = new MapGenerator(GAME, SERVER);
     if (SERVER.mainServer) {
         MAP.generateMap(60, AI_TEAM, AI_TEAM_SEP);
-        
+
         const aiHome = MAP.systems.find(s => s.owner === AI_TEAM && s.type === 'producing');
-        if (aiHome) new GEOStation(GAME, {server: SERVER}, GEOStarSystem.ownerColor(AI_TEAM), aiHome.label.text, AI_TEAM);
-        
+        if (aiHome) new GEOStation(GAME, { server: SERVER }, GEOStarSystem.ownerColor(AI_TEAM), aiHome.label.text, AI_TEAM);
+
         const sepHome = MAP.systems.find(s => s.owner === AI_TEAM_SEP && s.type === 'producing');
-        if (sepHome) new GEOStation(GAME, {server: SERVER}, GEOStarSystem.ownerColor(AI_TEAM_SEP), sepHome.label.text, AI_TEAM_SEP);
+        if (sepHome) new GEOStation(GAME, { server: SERVER }, GEOStarSystem.ownerColor(AI_TEAM_SEP), sepHome.label.text, AI_TEAM_SEP);
 
         SERVER.onEventListener(() => {
             SERVER.sendEvent('map:fetch:response', MAP.saveDict())
@@ -88,7 +122,7 @@ async function start() {
     await (new AIOneShip(new ServerConnection(), AI_TEAM)).start();
     await (new AISeparatistic(new ServerConnection(), AI_TEAM_SEP, 10, GAME)).start();
 
-    GAME.cameraCenter = {x: MAP.playerStart.x, y: MAP.playerStart.y};
+    GAME.cameraCenter = { x: MAP.playerStart.x, y: MAP.playerStart.y };
 
     initPlayer('local', MAP.playerStart, MAP.playerResource);
     GEOStarSystem.computeVisibility(GAME);
@@ -182,6 +216,7 @@ async function start() {
     }
 
     initMusic();
+    musicController();
     GAME.run();
 }
 
