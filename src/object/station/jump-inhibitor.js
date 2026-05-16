@@ -21,6 +21,7 @@ class GEOJumpInhibitor extends GEOSelectable {
         this.x = this.system.x - this.system.wh - 15 - this.w;
         this.y = this.system.y;
         this.conn.patchMethod(this.dismantle);
+        this.conn.patchMethod(this.__fireLaser);
         this.sendCreationEvent(arguments);
     }
 
@@ -108,7 +109,7 @@ class GEOJumpInhibitor extends GEOSelectable {
         if (this.conn.server.mainServer) {
             if (!this.__laserTick) this.__laserTick = 0;
             this.__laserTick++;
-            if (this.__laserTick >= fps * 3) {
+            if (this.__laserTick >= GAME.fps * 3) {
                 this.__laserTick = 0;
                 this.__fireLaser();
             }

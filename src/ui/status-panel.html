@@ -52,10 +52,10 @@
 
     <!-- Builder + combat ship commands (player ships only) -->
     <div r-attr='{"class": "f.getShipButtonsClass(v.selected)"}'>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildShipyard', 'Shipyard')">🏗 Build Shipyard</button>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildRepairStation', 'Repair Station')">🛠 Build Repair Station</button>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildShield', 'Shield')">⬡ Build Shield</button>
-        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('buildJumpInhibitor', 'Inhibitor')">⊗ Build Inhibitor</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('shipyard', 'Shipyard')">🏗 Build Shipyard</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('repair-station', 'Repair Station')">🛠 Build Repair Station</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('shield', 'Shield')">⬡ Build Shield</button>
+        <button r-attr='{"class": "f.getBuilderCommandClass(v.selected, v.pendingBuilderAction)"}' r-click="requestBuilderBuild('jump-inhibitor', 'Inhibitor')">⊗ Build Inhibitor</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.stop(); deselectAll()">■ STOP</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.setMode('search'); deselectAll()">◎ SEARCH</button>
         <button r-attr='{"class": "f.getCombatCommandClass(v.selected)"}' r-click="v.selected.setMode('search-defend'); deselectAll()">◈ S&amp;DEFEND</button>

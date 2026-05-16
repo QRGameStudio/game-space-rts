@@ -93,6 +93,7 @@ class ServerCommAsset {
      * @param assetCategory {string}
      */
     constructor(server, parent, assetId = null, assetCategory = 'asset') {
+        console.assert(typeof server.server !== 'undefined', 'ServerCommAsset requires a server connection');
         this.server = server.server;
         this.parent = parent;
         /** @type {boolean} True if the object was originally created locally */

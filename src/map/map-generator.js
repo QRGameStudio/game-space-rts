@@ -5,6 +5,9 @@ class MapGenerator {
      * @param server {ServerConnection}
      */
     constructor(game, server) {
+        console.assert(game instanceof GEG, '[MapGenerator] game must be an instance of GEG');
+        console.assert(server instanceof ServerConnection, '[MapGenerator] server must be an instance of ServerConnection');
+
         /** @type {GEOStarSystem[]} */
         this.systems = [];
         this.game = game;
@@ -17,9 +20,12 @@ class MapGenerator {
     }
 
     generateSystem() {
+        /** @type {GEOServerConnection} */
+        const serverConnection = {server: this.server};
+        console.assert(typeof serverConnection.server !== 'undefined', '[MapGenerator] serverConnection must have a server property');
         let newSystem;
         if (this.systems.length === 0) {
-            newSystem = new GEOStarSystem(this.game, 0, 0, this.server);
+            newSystem = new GEOStarSystem(this.game, 0, 0, serverConnection);
         } else {
             while (true) {
                 const randomSystem = this.systems[Math.floor(Math.random() * this.systems.length)];
@@ -39,7 +45,7 @@ class MapGenerator {
                     continue;
                 }
 
-                newSystem = new GEOStarSystem(this.game, position.x, position.y, this.server);
+                newSystem = new GEOStarSystem(this.game, position.x, position.y, serverConnection);
                 randomSystem.connections.push(newSystem);
                 newSystem.connections.push(randomSystem);
                 if (randomSystem !== closestSystem && Math.random() > 0.25) {
@@ -242,7 +248,7 @@ class MapGenerator {
     loadDict(data) {
         this.systems = [];
         for (const systemData of data.systems) {
-            const system = new GEOStarSystem(this.game, 0, 0, this.server);
+            const system = new GEOStarSystem(this.game, 0, 0, {server: this.server});
             system.loadDict(systemData);
             this.systems.push(system);
         }

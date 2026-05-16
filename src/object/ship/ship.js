@@ -83,10 +83,7 @@ class GEOShip extends GEOSelectable {
         this.conn.patchMethod(this.goToSystem);
         this.conn.patchMethod(this.setMode);
         this.conn.patchMethod(this.stop);
-        this.conn.patchMethod(this.buildShipyard);
-        this.conn.patchMethod(this.buildRepairStation);
-        this.conn.patchMethod(this.buildShield);
-        this.conn.patchMethod(this.buildJumpInhibitor);
+        this.conn.patchMethod(this.build);
         this.sendCreationEvent(arguments);
         this.goToSystem(systemName, true);
     }
@@ -247,53 +244,50 @@ class GEOShip extends GEOSelectable {
         }
     }
 
-    /** Builder ship: convert this system to a shipyard and consume the ship. */
-    buildShipyard() {
-        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
-        if (!this.conn.server.mainServer) return;
+    /**
+     * Builds the selected structure in the current system
+     * @param {"shipyard"|"repair-station"|"shield"|"jump-inhibitor"} action 
+     */
+    build(action) {
+        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) {
+            console.debug('[BUILDER] build failed: invalid ship class, system, or ownership');
+            return;
+        }
+        if (!this.conn.server.mainServer) {
+            return;
+        }
         const hasStation = [...this.game.objectsOfTypes(GEOStation.t)].some(st => st.system === this.system);
-        if (hasStation) return;
-        // Shipyard capacity: Math.ceil(owned_systems / 5)
-        const ownedSystems = [...this.game.objectsOfTypes(GEOStarSystem.t)].filter(s => s.owner === this.owner).length;
-        const ownedStations = [...this.game.objectsOfTypes(GEOStation.t)].filter(s => s.owner === this.owner).length;
-        const shipyardCap = Math.ceil(ownedSystems / 5);
-        if (ownedStations >= shipyardCap) return; // at shipyard cap
-        this.system.type = 'producing';
-        new GEOStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
-        this.die();
-    }
-
-    /** Builder ship: convert this system to a repair station and consume the ship. */
-    buildRepairStation() {
-        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
-        if (!this.conn.server.mainServer) return;
-        const hasStation = [...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system);
-        if (hasStation) return;
-        this.system.type = 'repair';
-        new GEORepairStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
-        this.die();
-    }
-
-    /** Builder ship: build a planetary shield around the system and consume the ship. */
-    buildShield() {
-        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
-        if (!this.conn.server.mainServer) return;
-        if (this.system.shieldHp > 0) return; // Already has a shield
-        this.system.shieldHp = this.system.shieldMaxHp;
-        this.die();
-    }
-
-    /** Builder ship: build a jump inhibitor at this system and consume the ship. */
-    buildJumpInhibitor() {
-        if (this.shipClass !== 'builder' || !this.system || this.system.owner !== this.owner) return;
-        if (!this.conn.server.mainServer) return;
+        const hasRepairStation = [...this.game.objectsOfTypes(GEORepairStation.t)].some(st => st.system === this.system);
         const hasInhibitor = [...this.game.objectsOfTypes(GEOJumpInhibitor.t)].some(j => j.system === this.system);
-        if (hasInhibitor) return;
-        const hasStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t)]
-            .some(st => st.system === this.system);
-        if (hasStation) return; // Already has a station or repair station
-        this.system.type = 'inhibitor';
-        new GEOJumpInhibitor(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
+        if (action !== "shield" && (hasStation || hasRepairStation || hasInhibitor)) {
+            console.debug('[BUILDER] build failed: station, repair station, or inhibitor already exists');
+            return;
+        }
+
+        console.debug(`[BUILDER] build action: ${action} at system ${this.system.label.text} by ship ${this.id}`);
+        switch (action) {
+            case 'shipyard':
+                console.debug('[BUILDER] buildShipyard: converting system to producing and creating station');
+                this.system.type = 'producing';
+                new GEOStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
+                break;
+            case 'repair-station':
+                console.debug('[BUILDER] buildRepairStation: converting system to repair and creating repair station');
+                this.system.type = 'repair';
+                new GEORepairStation(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
+                break;
+            case 'shield':
+                console.debug('[BUILDER] buildShield: adding shield to system');
+                this.system.shieldHp = this.system.shieldMaxHp;
+                break;
+            case 'jump-inhibitor':
+                console.debug('[BUILDER] buildJumpInhibitor: creating jump inhibitor');
+                this.system.type = 'inhibitor';
+                new GEOJumpInhibitor(this.game, { server: this.conn.server }, this.system.label.text, this.owner);
+                break;
+            default:
+                console.error('[BUILDER] Unknown build action:', action);
+        }
         this.die();
     }
 

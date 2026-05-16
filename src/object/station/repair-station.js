@@ -21,6 +21,7 @@ class GEORepairStation extends GEOSelectable {
         this.x = this.system.x + this.system.wh + 15 + this.w;
         this.y = this.system.y;
         this.conn.patchMethod(this.dismantle);
+        this.conn.patchMethod(this.__fireLaser);
         this.sendCreationEvent(arguments);
     }
 

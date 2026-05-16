@@ -96,12 +96,12 @@ class GEOStarSystem extends GEOSelectable {
      * @param game {GEG}
      * @param x {number}
      * @param y {number}
-     * @param server {ServerConnection|null}
+     * @param server {GEOServerConnection}
      */
-    constructor(game, x, y, server = null) {
-        super(game, null, null);
-        /** @type {ServerConnection|null} Used only on main server for spawning */
-        this.__server = server;
+    constructor(game, x, y, server) {
+        console.assert(game instanceof GEG, '[GEOStarSystem] game must be an instance of GEG');
+        console.assert(typeof server.server === 'undefined', '[GEOStarSystem] server.server must be defined');
+        super(game, server, null);
         this.sides = 8;
         this.t = GEOStarSystem.t;
         this.x = x;
@@ -120,11 +120,11 @@ class GEOStarSystem extends GEOSelectable {
         // Ownership & economy
         /** @type {string|null} 'local', AI team name, or null (neutral) */
         this.owner = null;
-        /** @type {'neutral'|'resource'|'producing'|'repair'} */
+        /** @type {'neutral'|'resource'|'producing'|'repair'|'inhibitor'} */
         this.type = 'neutral';
         /** @type {number} Materials stockpile */
         this.materials = 0;
-        /** @type {{shipClass: string, ticksLeft: number, cost: number}[]} */
+        /** @type {{shipClass: string, ticksLeft: number}[]} */
         this.buildQueue = [];
         /** @type {number} 0–100; invasion fleet increments this */
         this.captureProgress = 0;
@@ -141,6 +141,9 @@ class GEOStarSystem extends GEOSelectable {
         // Tick counters (steps at 30fps)
         this.__resourceTick = 0;
         this.__repairTick = 0;
+
+        this.conn.patchMethod(this.capture);
+        this.conn.patchMethod(this.buildShields);
     }
 
     /** Returns true if this system is currently visible to the player (fog of war, with 2s linger). */
@@ -154,9 +157,6 @@ class GEOStarSystem extends GEOSelectable {
     capture(newOwner) {
         this.owner = newOwner;
         this.captureProgress = 0;
-        if (this.__server?.mainServer) {
-            this.__server.sendEvent('system:capture', { name: this.label.text, owner: newOwner });
-        }
     }
 
     /**
@@ -178,7 +178,7 @@ class GEOStarSystem extends GEOSelectable {
             const allStations = [...this.game.objectsOfTypes(GEOStation.t)];
             const ownedSystems  = allSystems.filter(s => s.owner === this.owner).length;
             const ownedStations = allStations.filter(s => s.owner === this.owner).length;
-            const cap = Math.max(3, ownedSystems * 1 + ownedStations * 2);
+            const cap = Math.max(3, ownedSystems + ownedStations * 2);
             const activeShips = [...this.game.objectsOfTypes(GEOShip.t)].filter(s => s.owner === this.owner).length;
             const queuedShips = allSystems
                 .filter(s => s.owner === this.owner)
@@ -197,6 +197,13 @@ class GEOStarSystem extends GEOSelectable {
         this.__shieldHitRecently = true;
         this.__shieldRegenTick = 0;
         return true; // shield absorbed the hit
+    }
+
+    /**
+     * Instantly restore shields to max HP
+     */
+    buildShields() {
+        this.shieldHp = this.shieldMaxHp;
     }
 
     onclick(x, y, clickedObject) {
@@ -445,6 +452,7 @@ class GEOStarSystem extends GEOSelectable {
         this.materials = data.materials ?? 0;
         this.shieldHp = data.shieldHp ?? 0;
         for (const connectionName of data.connections) {
+            /** @type {GEOStarSystem} */
             const connection = [...this.game.objectsOfTypes(GEOStarSystem.t)].find(s => s?.label.text === connectionName);
             if (connection) {
                 this.connections.push(connection);

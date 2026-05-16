@@ -47,12 +47,6 @@ class AISeparatistic {
                 this.map.loadDict(data);
                 this.game.run();
                 new ServerObjectSync(this.game, this.server);
-
-                this.server.onEventListener((ev, src, d) => {
-                    const sys = this.map.systems.find(s => s.label.text === d.name);
-                    if (sys) sys.owner = d.owner;
-                }, 'system:capture');
-
                 resolve();
                 this.__start();
             }, 'map:fetch:response');

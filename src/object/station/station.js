@@ -23,6 +23,7 @@ class GEOStation extends GEOSelectable {
         this.__repairTick = 0;
         this.conn.patchMethod(this.build);
         this.conn.patchMethod(this.dismantle);
+        this.conn.patchMethod(this.__fireLaser);
         this.sendCreationEvent(arguments);
     }
 

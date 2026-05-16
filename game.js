@@ -62,7 +62,7 @@ CONTROLS_RENDERED.functions.getFleetCap = (s) => {
     if (!s?.owner || !GAME) return 0;
     const systems  = [...GAME.objectsOfTypes(GEOStarSystem.t)].filter(x => x.owner === s.owner).length;
     const stations = [...GAME.objectsOfTypes(GEOStation.t)].filter(x => x.owner === s.owner).length;
-    return Math.max(3, systems * 1 + stations * 2);
+    return Math.max(3, systems + stations * 2);
 };
 CONTROLS_RENDERED.functions.getShipyardCap = (s) => {
     if (!s?.owner || !GAME) return 0;
@@ -116,9 +116,8 @@ window.requestBuilderBuild = function (action, label) {
 window.confirmBuilderBuild = function () {
     const action = CONTROLS_RENDERED.variables.pendingBuilderAction;
     const target = CONTROLS_RENDERED.variables.pendingBuilderTarget || SELECTED_OBJECT;
-    if (target && action && typeof target[action] === 'function') {
-        target[action]();
-    }
+    console.debug('[BUILDER] confirmBuilderBuild called with action:', action, 'target:', target);
+    target.build(action);
     CONTROLS_RENDERED.variables.pendingBuilderAction = null;
     CONTROLS_RENDERED.variables.pendingBuilderLabel = '';
     CONTROLS_RENDERED.variables.pendingBuilderTarget = null;
@@ -133,7 +132,7 @@ window.cancelBuilderBuild = function () {
 };
 
 /**
- * Initialise a player: create a starbase, seed starting materials, spawn one destroyer.
+ * Initialize a player: create a shipyard, seed starting materials, spawn one destroyer.
  * The resource system is forced to type 'resource' so income always flows.
  * @param {string} owner
  * @param {GEOStarSystem} system - producing / shipyard system
@@ -153,7 +152,7 @@ async function musicController() {
     let currentSong = null;
     let targetTrack = "songMainTheme";
 
-    while (true) {
+    while (!GAME.paused) {
         if (IN_COMBAT_TIMEOUT + 15000 > Date.now()) {
             targetTrack = "songCombat";
         } else if (IN_COMBAT_TIMEOUT + 30000 > Date.now()) {
