@@ -173,11 +173,20 @@ async function musicController() {
     }
 }
 
+/**
+ * Sets the correct resolution for the gmae
+ * @param game {GEG}
+ */
+function setResolution(game) {
+    game.res = GUt.isLandscape() ? { w: 1920, h: 1080 } : { w: 1080, h: 1920 };
+}
+
 async function start() {
     const canvas = $('#game-canvas');
     GAME = new GEG(canvas);
 
-    GAME.res = GUt.isLandscape() ? { w: 1920, h: 1080 } : { w: 1080, h: 1920 };
+    setResolution(GAME);
+    window.addEventListener('resize', () => setResolution(GAME));
     GAME.fps = 30;
 
     SERVER = new ServerConnection('MAIN', true, false);
