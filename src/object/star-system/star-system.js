@@ -144,6 +144,7 @@ class GEOStarSystem extends GEOSelectable {
 
         this.conn.patchMethod(this.capture);
         this.conn.patchMethod(this.buildShields);
+        this.conn.patchMethod(this.hitShield);
     }
 
     /** Returns true if this system is currently visible to the player (fog of war, with 2s linger). */
@@ -307,7 +308,7 @@ class GEOStarSystem extends GEOSelectable {
     }
 
     __spawnTransport() {
-        if (!this.__server?.mainServer) return;
+        if (!this.conn.server.mainServer) return;
         const systems = [...this.game.objectsOfTypes(GEOStarSystem.t)];
         const target = systems
             .filter(s => s !== this && s.owner === this.owner && s.type === 'producing' && s.materials < 50)
@@ -318,8 +319,8 @@ class GEOStarSystem extends GEOSelectable {
     }
 
     __spawnFleet(shipClass) {
-        if (!this.__server?.mainServer) return;
-        new GEOShip(this.game, {server: this.__server}, this.label.text, this.owner, shipClass);
+        if (!this.conn.server.mainServer) return;
+        new GEOShip(this.game, {server: this.conn.server}, this.label.text, this.owner, shipClass);
     }
 
     draw(ctx) {

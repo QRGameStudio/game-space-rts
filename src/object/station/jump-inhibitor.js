@@ -1,6 +1,6 @@
 class GEOJumpInhibitor extends GEOSelectable {
     static t = 'jump-inhibitor';
-    static MAX_HP = 12;
+    static MAX_HP = 8;
 
     /**
      * @param game {GEG}

@@ -585,7 +585,7 @@ class GEOShip extends GEOSelectable {
                 this.fireLaser(target, this);
             }
 
-            // Target structures: shield must be destroyed first; station targetable only after capture
+            // Target structures: shield must be destroyed first; then attack enemy stations
             if (this.conn.server.mainServer && this.system && !enemiesInSystem.length) {
                 if (this.system.owner !== this.owner && this.system.shieldHp > 0) {
                     // Phase 1: destroy the shield
@@ -594,15 +594,15 @@ class GEOShip extends GEOSelectable {
                         this.system.hitShield(1);
                         new GEOLaser(this.game, this, this.system, this.color);
                     }
-                } else if (this.system.owner === this.owner) {
-                    // Phase 2: system captured — destroy any remaining enemy structures
-                    const enemyStation = [...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t), ...this.game.objectsOfTypes(GEOJumpInhibitor.t)]
-                        .find(st => st.system === this.system && st.owner !== this.owner);
-                    if (enemyStation) {
-                        if (Date.now() - this.__lastFired >= this.__attackCooldown) {
-                            this.__lastFired = Date.now();
-                            this.__fireLaser(enemyStation, enemyStation.health - 1);
-                        }
+                } else if (this.system.owner !== this.owner) {
+                    // Phase 2: enemy system, shield down — attack enemy structures directly
+                    // noinspection JSValidateTypes
+                    /** @type {GEOStation | GEORepairStation | GEOJumpInhibitor | undefined} */
+                    const enemyStation = [
+                        ...this.game.objectsOfTypes(GEOStation.t), ...this.game.objectsOfTypes(GEORepairStation.t), ...this.game.objectsOfTypes(GEOJumpInhibitor.t)
+                    ].find(x => x.system === this.system);
+                    if (typeof enemyStation !== 'undefined') {
+                        this.fireLaser(enemyStation, this);
                     }
                 }
             }
