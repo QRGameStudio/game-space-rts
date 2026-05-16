@@ -40,7 +40,8 @@ body, #game-layer {
     border-top: 1px solid #546E7A;
     display: flex;
     align-items: center;
-    gap: 1.5em;
+    flex-wrap: wrap;
+    gap: 0.5em 1.5em;
     color: white;
     font-family: monospace;
     font-size: 13px;
@@ -49,12 +50,22 @@ body, #game-layer {
 }
 
 #controls-c .info-block {
-    flex: 1;
+    flex: 1 1 100%;
 }
 
 #controls-c .buttons {
     display: flex;
+    flex-wrap: wrap;
     gap: 0.4em;
+}
+
+@media (orientation: landscape) {
+    #controls-c {
+        flex-wrap: nowrap;
+    }
+    #controls-c .info-block {
+        flex: 1;
+    }
 }
 
 #controls-c .buttons button {
